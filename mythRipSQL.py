@@ -2,7 +2,7 @@
 
 import MySQLdb
 
-class MythSQL():
+class mythRipSQL():
     
     def __init__(self):        
 
@@ -15,7 +15,7 @@ class MythSQL():
         for line in file(mythtvFile):
             
             # if not a comment, contains a key=value pair
-            if line[0] != '#' && '=' in line:
+            if line[0] != '#' and '=' in line:
                 
                 equalPos = line.find('=')
 
