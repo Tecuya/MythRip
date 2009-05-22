@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import MySQLdb
+import MySQLdb, os
 
 class mythRipSQL():
     
@@ -19,9 +19,9 @@ class mythRipSQL():
                 
                 equalPos = line.find('=')
 
-                mythtvFileSettings[ line[0:equalPos] ] = line[equalPos:]
+                self.mythtvFileSettings[ line[0:equalPos] ] = line[equalPos+1:].strip()
 
-        print mythtvFileSettings
+        print self.mythtvFileSettings
 
             
             
