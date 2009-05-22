@@ -1,0 +1,5 @@
+dependencies:
+
+  python2.6 (tested on this version only so far	)
+
+  python-mysqldb 
