@@ -91,6 +91,7 @@ class mainFrame(wx.Frame):
             self.mainFrameListCtrl.SetStringItem(i, 1, program.subtitle)
             self.mainFrameListCtrl.SetStringItem(i, 2, str(program.starttime))
             
+            # unpack program flags to english strings
             flags = []
             for k,v in mythtv.PROGRAM_FLAGS.iteritems():
                 if int(program.programflags) & v:
@@ -99,12 +100,13 @@ class mainFrame(wx.Frame):
             self.mainFrameListCtrl.SetStringItem(i, 3, ', '.join(flags) )
             self.mainFrameListCtrl.SetItemData(i, i)  # set item datas to be the same as indexes initially
             
+        # make nice column sizes
         self.mainFrameListCtrl.SetColumnWidth(0, wx.LIST_AUTOSIZE)
         self.mainFrameListCtrl.SetColumnWidth(1, wx.LIST_AUTOSIZE)
         self.mainFrameListCtrl.SetColumnWidth(2, wx.LIST_AUTOSIZE)
         self.mainFrameListCtrl.SetColumnWidth(3, wx.LIST_AUTOSIZE)
         
-        # these variables preserve the sorting state
+        # these variables are for preserving the sorting state
         self.lastColClick = 0
         self.sortToggler = 1
 
@@ -112,9 +114,9 @@ class mainFrame(wx.Frame):
         self.mainFrameListCtrl.SortItems( self.sortList ) 
         
         # prepare the right-click context menu entry definitions
-        self.context_menu_title_by_id = {}
+        self.contextMenuEntriesById = {}
         for item in [ "Preview", "Delete", "Encode" ]:
-            self.context_menu_title_by_id[ wx.NewId() ] = item
+            self.contextMenuEntriesById[ wx.NewId() ] = item
         
     def __set_properties(self):
         # begin wxGlade: mainFrame.__set_properties
@@ -142,6 +144,8 @@ class mainFrame(wx.Frame):
 
         if (clickedCol == self.lastColClick):
             self.sortToggler *= -1
+        else:
+            self.sortToggler = 1
 
         self.lastColClick = clickedCol
         
@@ -181,27 +185,27 @@ class mainFrame(wx.Frame):
 
         return 0
         
-
         
     def onMenuQuit(self, event): # wxGlade: mainFrame.<event_handler>
         sys.exit()
-        event.Skip()
+
 
     def onItemRightClick(self, event): # wxGlade: mainFrame.<event_handler>
         
         menu = wx.Menu()
 
-        for (id,title) in self.context_menu_title_by_id.iteritems():
+        for (id,title) in self.contextMenuEntriesById.iteritems():
             menu.Append(id, title)
-            wx.EVT_MENU( menu, id, self.onContextMenuSelection )
+            wx.EVT_MENU( menu, id, self.oncontextMenuSelection )
             
         self.PopupMenu( menu )
 
         event.Skip()
 
-    def onContextMenuSelection(self, event):
+
+    def oncontextMenuSelection(self, event):
         
-        selectedMenuItem = self.context_menu_title_by_id[ event.GetId() ]
+        selectedMenuItem = self.contextMenuEntriesById[ event.GetId() ]
         
         item = self.mainFrameListCtrl.GetFirstSelected()
 
@@ -210,8 +214,8 @@ class mainFrame(wx.Frame):
             
             print selectedMenuItem,program
             
-            if selectedMenuItem == "preview":
-                # subprocess.call("mplayer",
+            # if selectedMenuItem == "preview":
+            # subprocess.call("mplayer",
 
             item = self.mainFrameListCtrl.GetNextSelected(item)
 
