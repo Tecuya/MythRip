@@ -28,7 +28,7 @@ class mainFrame(wx.Frame):
         self.mainFrameMenubar.Append(self.helpMenuItem, "&Help")
         self.SetMenuBar(self.mainFrameMenubar)
         # Menu Bar end
-        self.mainFrameListCtrl = wx.ListCtrl(self, -1, style=wx.LC_REPORT|wx.SUNKEN_BORDER)
+        self.mainFrameListCtrl = wx.ListCtrl(self, -1, style=wx.LC_REPORT|wx.LC_EDIT_LABELS|wx.LC_SORT_ASCENDING|wx.SUNKEN_BORDER)
         
         # Tool Bar
         self.mainFrameToolbar = wx.ToolBar(self, -1)
@@ -38,6 +38,8 @@ class mainFrame(wx.Frame):
 
         self.__set_properties()
         self.__do_layout()
+
+        self.Bind(wx.EVT_LIST_COL_CLICK, self.onColClick, self.mainFrameListCtrl)
         # end wxGlade
 
         ################################################################################
@@ -56,28 +58,46 @@ class mainFrame(wx.Frame):
         recordingLength = (len(rawRecordings) - 1) / numberRecordings
         
         # parse the output, stuff the results in to a list of Program objects
-        programList = []
+        self.programList = []
         
         for recording in range(numberRecordings):            
             idxStart = ( recording * recordingLength ) + 1
-            idxStop = (recording+1) * recordingLength
+            idxStop = ( recording + 1 ) * recordingLength
             
-            programList.append( mythtv.Program( rawRecordings[idxStart:idxStop] ) )
+            self.programList.append( mythtv.Program( rawRecordings[idxStart:idxStop] ) )
 
         # add recording count to the status bar
-        self.mainFrameStatusbar.PushStatusText('Loaded %d recordings' % len(programList))
+        self.mainFrameStatusbar.PushStatusText('Loaded %d recordings' % len(self.programList))
         
         # set up the ListCtrl columns
         self.mainFrameListCtrl.InsertColumn(0, "Show")
         self.mainFrameListCtrl.InsertColumn(1, "Episode")
         self.mainFrameListCtrl.InsertColumn(2, "Air Time")
+        self.mainFrameListCtrl.InsertColumn(3, "Flags")
         
         # push in the ListCtrl data
-        for i in range(len(programList)):
-            self.mainFrameListCtrl.InsertStringItem(i, programList[i].title)
-            self.mainFrameListCtrl.SetStringItem(i, 1, programList[i].subtitle)
-            self.mainFrameListCtrl.SetStringItem(i, 2, str(programList[i].starttime))
+        for i in range(len(self.programList)):
+            program = self.programList[i]
+            self.mainFrameListCtrl.InsertStringItem(i, program.title)
+            self.mainFrameListCtrl.SetStringItem(i, 1, program.subtitle)
+            self.mainFrameListCtrl.SetStringItem(i, 2, str(program.starttime))
             
+            flags = []
+            for k,v in mythtv.PROGRAM_FLAGS.iteritems():
+                if int(program.programflags) & v:
+                    flags.append(k)
+
+            self.mainFrameListCtrl.SetStringItem(i, 3, ', '.join(flags) )
+            self.mainFrameListCtrl.SetItemData(i, i)  # set item datas to be the same as indexes initially
+            
+        self.mainFrameListCtrl.SetColumnWidth(0, wx.LIST_AUTOSIZE)
+        self.mainFrameListCtrl.SetColumnWidth(1, wx.LIST_AUTOSIZE)
+        self.mainFrameListCtrl.SetColumnWidth(2, wx.LIST_AUTOSIZE)
+        self.mainFrameListCtrl.SetColumnWidth(3, wx.LIST_AUTOSIZE)
+        
+        # these variables preserve the sorting state
+        self.lastColClick = 0
+        self.sortToggler = 1
 
     def __set_properties(self):
         # begin wxGlade: mainFrame.__set_properties
@@ -99,7 +119,59 @@ class mainFrame(wx.Frame):
         self.Layout()
         # end wxGlade
 
+    def onColClick(self, event): # wxGlade: mainFrame.<event_handler>
+        
+        clickedCol = event.GetColumn()
+
+        if (clickedCol == self.lastColClick):
+            self.sortToggler *= -1
+
+        self.lastColClick = clickedCol
+        
+        self.mainFrameListCtrl.SortItems( self.sortList ) 
+
+        event.Skip()
+
+    def sortList(self, item1, item2):
+                
+        if self.lastColClick < 0 or self.lastColClick >= 3:
+            return False
+        
+        progLeft = self.programList[ item1 ]
+        progRight = self.programList[ item2 ]
+        
+        if self.lastColClick == 0:
+            if progLeft.title < progRight.title:
+                return -1 * self.sortToggler
+            elif progLeft.title == progRight.title:
+                return 0
+            else:
+                return 1 * self.sortToggler
+
+        if self.lastColClick == 1:
+            if progLeft.subtitle < progRight.subtitle:
+                return -1 * self.sortToggler
+            elif progLeft.subtitle == progRight.subtitle:
+                return 0
+            else:
+                return 1 * self.sortToggler
+
+        if self.lastColClick == 2:
+            if progLeft.starttime < progRight.starttime:
+                return -1 * self.sortToggler
+            elif progLeft.starttime == progRight.starttime:
+                return 0
+            else:
+                return 1 * self.sortToggler
+
+        return 0
+        
+
+        
 # end of class mainFrame
+
+
+
 
 
 class aboutFrame(wx.Frame):

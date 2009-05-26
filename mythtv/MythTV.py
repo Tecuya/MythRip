@@ -43,6 +43,20 @@ RECSTATUS = {
 		'NeverRecord': 11,
 		}
 
+PROGRAM_FLAGS = {
+	'Commflag': 0x0001,
+	'CutlistPresent': 0x0002,
+	'AutoExpire': 0x0004,
+	'EditingNow': 0x0008,
+	'Bookmarked': 0x0010,
+	'InUse_Recording': 0x0020,
+	'InUse_Playing': 0x0040,
+	'Transcoded': 0x0400,
+	'Watched': 0x0800,
+	'Preserved': 0x1000 
+}
+
+
 BACKEND_SEP = '[]:[]'
 PROTO_VERSION = 40  # 45 per svn
 PROGRAM_FIELDS = 47
