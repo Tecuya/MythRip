@@ -2,4 +2,11 @@ dependencies:
 
   python2.6 (tested on this version only so far	)
 
-  python-mysqldb 
+  whatever the python mythtv bindings require...
+
+
+
+fixme:
+  
+  python bindings are hacked to work with my proto version .. what to do?
+
