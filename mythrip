@@ -98,6 +98,7 @@ class mainFrame(wx.Frame):
         # these variables preserve the sorting state
         self.lastColClick = 0
         self.sortToggler = 1
+        self.mainFrameListCtrl.SortItems( self.sortList ) 
 
     def __set_properties(self):
         # begin wxGlade: mainFrame.__set_properties
@@ -120,7 +121,7 @@ class mainFrame(wx.Frame):
         # end wxGlade
 
     def onColClick(self, event): # wxGlade: mainFrame.<event_handler>
-        
+
         clickedCol = event.GetColumn()
 
         if (clickedCol == self.lastColClick):
@@ -132,11 +133,9 @@ class mainFrame(wx.Frame):
 
         event.Skip()
 
+    # this is the callback to sort the mainFrameListCtrl used by onColClick
     def sortList(self, item1, item2):
-                
-        if self.lastColClick < 0 or self.lastColClick >= 3:
-            return False
-        
+                        
         progLeft = self.programList[ item1 ]
         progRight = self.programList[ item2 ]
         
