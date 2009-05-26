@@ -44,6 +44,7 @@ class mainFrame(wx.Frame):
 
         self.Bind(wx.EVT_MENU, self.onMenuQuit, self.quitMenuItem)
         self.Bind(wx.EVT_LIST_COL_CLICK, self.onColClick, self.mainFrameListCtrl)
+        self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.onItemRightClick, self.mainFrameListCtrl)
         # end wxGlade
 
         ################################################################################
@@ -65,10 +66,14 @@ class mainFrame(wx.Frame):
         self.programList = []
         
         for recording in range(numberRecordings):            
-            idxStart = ( recording * recordingLength ) + 1
-            idxStop = ( recording + 1 ) * recordingLength
+            idxStart = ( recording * recordingLength ) + 1    # plus one - offset for the beginning's "record count" record
+            idxStop = ( recording + 1 ) * recordingLength     # stop at the next recording beginning
             
-            self.programList.append( mythtv.Program( rawRecordings[idxStart:idxStop] ) )
+            recordingData = rawRecordings[idxStart:idxStop]
+            
+            print "RECORDING: ",recordingData,"------------------------------------------------------\n\n\n"
+
+            self.programList.append( mythtv.Program( recordingData ) )
 
         # add recording count to the status bar
         self.mainFrameStatusbar.PushStatusText('Loaded %d recordings' % len(self.programList))
@@ -105,7 +110,12 @@ class mainFrame(wx.Frame):
 
         # run an initial sort
         self.mainFrameListCtrl.SortItems( self.sortList ) 
-
+        
+        # prepare the right-click context menu entry definitions
+        self.context_menu_title_by_id = {}
+        for item in [ "Preview", "Delete", "Encode" ]:
+            self.context_menu_title_by_id[ wx.NewId() ] = item
+        
     def __set_properties(self):
         # begin wxGlade: mainFrame.__set_properties
         self.SetTitle("MythRip - Main")
@@ -177,6 +187,36 @@ class mainFrame(wx.Frame):
         sys.exit()
         event.Skip()
 
+    def onItemRightClick(self, event): # wxGlade: mainFrame.<event_handler>
+        
+        menu = wx.Menu()
+
+        for (id,title) in self.context_menu_title_by_id.iteritems():
+            menu.Append(id, title)
+            wx.EVT_MENU( menu, id, self.onContextMenuSelection )
+            
+        self.PopupMenu( menu )
+
+        event.Skip()
+
+    def onContextMenuSelection(self, event):
+        
+        selectedMenuItem = self.context_menu_title_by_id[ event.GetId() ]
+        
+        item = self.mainFrameListCtrl.GetFirstSelected()
+
+        while item != -1:
+            program = self.programList[ self.mainFrameListCtrl.GetItemData(item) ]            
+            
+            print selectedMenuItem,program
+            
+            if selectedMenuItem == "preview":
+                # subprocess.call("mplayer",
+
+            item = self.mainFrameListCtrl.GetNextSelected(item)
+
+
+        
 # end of class mainFrame
 
 
