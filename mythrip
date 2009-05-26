@@ -39,19 +39,50 @@ class mainFrame(wx.Frame):
         self.__set_properties()
         self.__do_layout()
         # end wxGlade
-        
+
+        ################################################################################
+
+        # establish our MythTV connection using the mythtv python bindings
         try: 
             self.mythTV = mythtv.MythTV()
         except mythtv.MythError, e:
             print "Failed initializing MythTV environment; %s" % e.message
+        
+        # query recordings from the backend
+        rawRecordings = self.mythTV.backendCommand('QUERY_RECORDINGS Play').split(mythtv.BACKEND_SEP)
+        
+        # determine the record length and number of recordings present in the response
+        numberRecordings = int(rawRecordings[0])        
+        recordingLength = (len(rawRecordings) - 1) / numberRecordings
+        
+        # parse the output, stuff the results in to a list of Program objects
+        programList = []
+        
+        for recording in range(numberRecordings):            
+            idxStart = ( recording * recordingLength ) + 1
+            idxStop = (recording+1) * recordingLength
+            
+            programList.append( mythtv.Program( rawRecordings[idxStart:idxStop] ) )
 
-        # print mythtv.MythLog
-        # self.mythRipSQL = mythRipSQL.mythRipSQL()
-
+        # add recording count to the status bar
+        self.mainFrameStatusbar.PushStatusText('Loaded %d recordings' % len(programList))
+        
+        # set up the ListCtrl columns
+        self.mainFrameListCtrl.InsertColumn(0, "Show")
+        self.mainFrameListCtrl.InsertColumn(1, "Episode")
+        self.mainFrameListCtrl.InsertColumn(2, "Air Time")
+        
+        # push in the ListCtrl data
+        for i in range(len(programList)):
+            self.mainFrameListCtrl.InsertStringItem(i, programList[i].title)
+            self.mainFrameListCtrl.SetStringItem(i, 1, programList[i].subtitle)
+            self.mainFrameListCtrl.SetStringItem(i, 2, str(programList[i].starttime))
+            
 
     def __set_properties(self):
         # begin wxGlade: mainFrame.__set_properties
         self.SetTitle("MythRip - Main")
+        self.SetSize((571, 418))
         self.mainFrameToolbar.Realize()
         self.mainFrameStatusbar.SetStatusWidths([-1])
         # statusbar fields
@@ -65,7 +96,6 @@ class mainFrame(wx.Frame):
         mainFrameSizer = wx.BoxSizer(wx.HORIZONTAL)
         mainFrameSizer.Add(self.mainFrameListCtrl, 1, wx.EXPAND, 0)
         self.SetSizer(mainFrameSizer)
-        mainFrameSizer.Fit(self)
         self.Layout()
         # end wxGlade
 
