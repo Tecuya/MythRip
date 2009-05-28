@@ -462,6 +462,7 @@ class encoderThread(threading.Thread):
         
         print "hi im a thread that is supposed to encode ",self.program
         
+        # apparently this is not going to work, i'm getting x assertion failures .. come up with the proper way to interface with parent thread's GUI
         queuelist.InsertStringItem(self.threadID, self.program.title)
         queuelist.SetStringItem(self.threadID, 1, self.program.subtitle)
         queuelist.SetStringItem(self.threadID, 2, str(self.program.starttime))
