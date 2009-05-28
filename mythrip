@@ -16,6 +16,13 @@ import threading
 
 class mainFrame(wx.Frame):
     def __init__(self, *args, **kwds):
+        
+        toolbarEncode = wx.NewId()
+        toolbarView = wx.NewId()
+        toolbarDelete = wx.NewId()
+        toolbarPrefs = wx.NewId()
+        toolbarQuit = wx.NewId()
+
         # begin wxGlade: mainFrame.__init__
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
@@ -43,18 +50,18 @@ class mainFrame(wx.Frame):
         self.mainFrameMenubar.Append(self.helpMenuItem, "&Help")
         self.SetMenuBar(self.mainFrameMenubar)
         # Menu Bar end
-        self.mainFrameListCtrl = wx.ListCtrl(self, -1, style=wx.LC_REPORT|wx.LC_EDIT_LABELS|wx.LC_SORT_ASCENDING|wx.SUNKEN_BORDER)
+        self.mainFrameStatusbar = self.CreateStatusBar(1, 0)
         
         # Tool Bar
         self.mainFrameToolbar = wx.ToolBar(self, -1)
         self.SetToolBar(self.mainFrameToolbar)
-        self.mainFrameToolbar.AddLabelTool(wx.NewId(), "Encode", wx.Bitmap("/usr/share/icons/gnome/32x32/categories/applications-system.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Encode selected recordings(s)", "")
-        self.mainFrameToolbar.AddLabelTool(wx.NewId(), "View", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-media-play-ltr.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "View selected recordings(s)", "")
-        self.mainFrameToolbar.AddLabelTool(wx.NewId(), "Delete", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/stock_delete.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Delete selected recordings(s)", "")
-        self.mainFrameToolbar.AddLabelTool(wx.NewId(), "Preferences", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "", "")
-        self.mainFrameToolbar.AddLabelTool(wx.NewId(), "Quit", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/application-exit.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarEncode, "Encode", wx.Bitmap("/usr/share/icons/gnome/32x32/categories/applications-system.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Encode selected recordings(s)", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarView, "View", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-media-play-ltr.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "View selected recordings(s)", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarDelete, "Delete", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/stock_delete.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Delete selected recordings(s)", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarPrefs, "Preferences", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarQuit, "Quit", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/application-exit.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "", "")
         # Tool Bar end
-        self.mainFrameStatusbar = self.CreateStatusBar(1, 0)
+        self.mainFrameListCtrl = wx.ListCtrl(self, -1, style=wx.LC_REPORT|wx.LC_EDIT_LABELS|wx.LC_SORT_ASCENDING|wx.SUNKEN_BORDER)
 
         self.__set_properties()
         self.__do_layout()
@@ -63,12 +70,12 @@ class mainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.onMenuQuit, self.quitMenuItem)
         self.Bind(wx.EVT_MENU, self.onMenuPrefs, self.prefsMenuItem)
         self.Bind(wx.EVT_MENU, self.onMenuQueue, self.queMenuItem)
+        self.Bind(wx.EVT_TOOL, self.onToolbarEncode, id=toolbarEncode)
+        self.Bind(wx.EVT_TOOL, self.onToolbarDelete, id=toolbarDelete)
+        self.Bind(wx.EVT_TOOL, self.onToolbarPrefs, id=toolbarPrefs)
+        self.Bind(wx.EVT_TOOL, self.onToolbarQuit, id=toolbarQuit)
         self.Bind(wx.EVT_LIST_COL_CLICK, self.onColClick, self.mainFrameListCtrl)
         self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.onItemRightClick, self.mainFrameListCtrl)
-        self.Bind(wx.EVT_TOOL, self.onToolbarEncode, id=-1)
-        self.Bind(wx.EVT_TOOL, self.onToolbarDelete, id=-1)
-        self.Bind(wx.EVT_TOOL, self.onToolbarPrefs, id=-1)
-        self.Bind(wx.EVT_TOOL, self.onToolbarQuit, id=-1)
         # end wxGlade
 
         ################################################################################
@@ -149,12 +156,12 @@ class mainFrame(wx.Frame):
         # begin wxGlade: mainFrame.__set_properties
         self.SetTitle("MythRip - Main")
         self.SetSize((571, 418))
-        self.mainFrameToolbar.Realize()
         self.mainFrameStatusbar.SetStatusWidths([-1])
         # statusbar fields
         mainFrameStatusbar_fields = ["mainFrame_statusbar"]
         for i in range(len(mainFrameStatusbar_fields)):
             self.mainFrameStatusbar.SetStatusText(mainFrameStatusbar_fields[i], i)
+        self.mainFrameToolbar.Realize()
         # end wxGlade
 
     def __do_layout(self):
@@ -271,7 +278,6 @@ class mainFrame(wx.Frame):
         event.Skip()
 
     def onToolbarEncode(self, event): # wxGlade: mainFrame.<event_handler>
-        print "onToolbarEncode fired"
         self.addRecordingsToQueue()
         event.Skip()
 
@@ -420,8 +426,8 @@ class encoderQueueFrame(wx.Frame):
     # meat
 
     def addProgram(self,program):
-        self.threads.append( encoderThread(program) )
-        # self.threads[-1].start()
+        self.threads.append( encoderThread(program, len(self.threads)) )
+        self.threads[-1].start()
 
         
         
@@ -438,24 +444,35 @@ class encoderQueueFrame(wx.Frame):
 
 class encoderThread(threading.Thread):
     
-    def __init__(self,program):
+    def __init__(self,program,threadID):
 
         self.program = program
-        
+        self.threadID = threadID
+
         # load parent constructor
         threading.Thread.__init__(self)
     
     def run(self):
         
         # grab a reference to the app
-        # global mythRip
+        global mythRip
 
         # snag a reference to the queue wxListCtrl
-        # queuelist = mythRip.mainFrameInstance.encoderQueueFrame.encoderQueueListCtrl
+        queuelist = mythRip.mainFrameInstance.encoderQueueFrame.encoderQueueListCtrl
         
         print "hi im a thread that is supposed to encode ",self.program
         
+        queuelist.InsertStringItem(self.threadID, self.program.title)
+        queuelist.SetStringItem(self.threadID, 1, self.program.subtitle)
+        queuelist.SetStringItem(self.threadID, 2, str(self.program.starttime))
+        queuelist.SetStringItem(self.threadID, 3, 'Initializing...')
+        queuelist.SetItemData(self.threadID, self.threadID) # set item data to be the same as the indexes initially
+        queuelist.SetColumnWidth(0, wx.LIST_AUTOSIZE)
+        queuelist.SetColumnWidth(1, wx.LIST_AUTOSIZE)
+        queuelist.SetColumnWidth(2, wx.LIST_AUTOSIZE)
+        queuelist.SetColumnWidth(3, wx.LIST_AUTOSIZE)
 
+        
 class preferencesFrame(wx.Frame):
     def __init__(self, *args, **kwds):
         # begin wxGlade: preferencesFrame.__init__
