@@ -174,7 +174,7 @@ class mainFrame(wx.Frame):
         self.Layout()
         # end wxGlade
 
-    # this is the callback to sort the mainFrameListCtrl used by onColClick
+    # this is the callback to sort the mainFrameListCtrl used by mainFrameListCtrl.SortItems
     def sortList(self, item1, item2):
                         
         progLeft = self.programList[ item1 ]
@@ -463,6 +463,7 @@ class encoderQueueFrame(wx.Frame):
 # end of class encoderQueueFrame
 
 ###################################################################
+# encoder thread land
 
 # define an "encoder" event ID 
 EVT_ENCODER_ID = wx.NewId()
@@ -510,6 +511,8 @@ class encoderThread(threading.Thread):
     # func called by the main thread in order to issue commands
     def setCommand(self,command):
         self.doCommand = setCommand
+
+###########################################################################
         
 
 class preferencesFrame(wx.Frame):
