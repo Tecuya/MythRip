@@ -372,6 +372,14 @@ class encoderOptionsFrame(wx.Frame):
 
 class encoderQueueFrame(wx.Frame):
     def __init__(self, *args, **kwds):
+
+
+        toolbarPause = wx.NewId()
+        toolbarRemove = wx.NewId()
+        toolbarUp = wx.NewId()
+        toolbarDown = wx.NewId()
+        toolbarOptions = wx.NewId()
+
         # begin wxGlade: encoderQueueFrame.__init__
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
@@ -379,13 +387,13 @@ class encoderQueueFrame(wx.Frame):
         # Tool Bar
         self.encoderQueueFrameToolbar = wx.ToolBar(self, -1)
         self.SetToolBar(self.encoderQueueFrameToolbar)
-        self.encoderQueueFrameToolbar.AddLabelTool(wx.NewId(), "Pause", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-media-pause.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Pause selected job(s)", "")
-        self.encoderQueueFrameToolbar.AddLabelTool(wx.NewId(), "Remove", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-cancel.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Remove from queue", "Remove an item from the encoding queue")
+        self.encoderQueueFrameToolbar.AddLabelTool(toolbarPause, "Pause", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-media-pause.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Pause selected job(s)", "")
+        self.encoderQueueFrameToolbar.AddLabelTool(toolbarRemove, "Remove", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-cancel.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Remove from queue", "Remove an item from the encoding queue")
         self.encoderQueueFrameToolbar.AddSeparator()
-        self.encoderQueueFrameToolbar.AddLabelTool(wx.NewId(), "Up", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-go-up.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Move selected recording(s) up", "")
-        self.encoderQueueFrameToolbar.AddLabelTool(wx.NewId(), "Down", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-go-down.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Move selected recording(s) down", "")
+        self.encoderQueueFrameToolbar.AddLabelTool(toolbarUp, "Up", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-go-up.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Move selected recording(s) up", "")
+        self.encoderQueueFrameToolbar.AddLabelTool(toolbarDown, "Down", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-go-down.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Move selected recording(s) down", "")
         self.encoderQueueFrameToolbar.AddSeparator()
-        self.encoderQueueFrameToolbar.AddLabelTool(wx.NewId(), "Options", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Open the queue options dialog", "")
+        self.encoderQueueFrameToolbar.AddLabelTool(toolbarOptions, "Options", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Open the queue options dialog", "")
         # Tool Bar end
         self.encoderQueueListCtrl = wx.ListCtrl(self, -1, style=wx.LC_REPORT|wx.SUNKEN_BORDER)
         self.encoderQueueCloseButton = wx.Button(self, wx.ID_CLOSE, "")
@@ -393,7 +401,12 @@ class encoderQueueFrame(wx.Frame):
         self.__set_properties()
         self.__do_layout()
 
-        self.Bind(wx.EVT_TOOL, self.onToolbarPause, id=-1)
+        self.Bind(wx.EVT_TOOL, self.onToolbarPause, id=toolbarPause)
+        self.Bind(wx.EVT_TOOL, self.onToolbarRemove, id=toolbarRemove)
+        self.Bind(wx.EVT_TOOL, self.onToolbarUp, id=toolbarUp)
+        self.Bind(wx.EVT_TOOL, self.onToolbarDown, id=toolbarDown)
+        self.Bind(wx.EVT_TOOL, self.onToolbarOptions, id=toolbarOptions)
+        
         self.Bind(wx.EVT_BUTTON, self.onCloseButton, self.encoderQueueCloseButton)
         # end wxGlade
         
@@ -410,6 +423,7 @@ class encoderQueueFrame(wx.Frame):
         
         # connect up a handler to update the GUI upon events from the encoder threads
         EVT_ENCODER(self, self.onEncoderEvent)    
+        
 
     def __set_properties(self):
         # begin wxGlade: encoderQueueFrame.__set_properties
@@ -444,11 +458,24 @@ class encoderQueueFrame(wx.Frame):
         self.encoderQueueListCtrl.SetColumnWidth(1, wx.LIST_AUTOSIZE)
         self.encoderQueueListCtrl.SetColumnWidth(2, wx.LIST_AUTOSIZE)
         self.encoderQueueListCtrl.SetColumnWidth(3, wx.LIST_AUTOSIZE)
-
+        
+        
     # when an encoder event is received this is called
     def onEncoderEvent(self, event):
-        print "thread %d says %s" % (event.threadID, event.data)
 
+        print "Thread %d says %s" % (event.threadID, event.data)
+        
+        if event.data == "terminating":
+            # if the thread died, remove it from the thread pool, and remove the item from the listctrl
+
+            print "Thread %d has terminated." % event.threadID
+
+            del self.threads[ event.threadID ]
+            
+        elif event.data == "done":
+            pass 
+            
+        
 
     ##########################################################################################
     # event handlers
@@ -505,7 +532,7 @@ class encoderThread(threading.Thread):
                 wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID,"abort") )
             print "thread %d tick tock.." % self.threadID
                 
-        wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID,"done") )
+        wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID,"terminating") )
 
     # func called by the main thread in order to issue commands
     def setCommand(self,command):
