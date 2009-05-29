@@ -447,8 +447,7 @@ class encoderQueueFrame(wx.Frame):
 
     # when an encoder event is received this is called
     def onEncoderEvent(self, event):
-        (thread_id,eventString) = event.data
-        print "thread %d says %s" % (thread_id,eventString)
+        print "thread %d says %s" % (event.threadID, event.data)
 
 
     ##########################################################################################
@@ -465,19 +464,19 @@ class encoderQueueFrame(wx.Frame):
 ###################################################################
 # encoder thread land
 
-# define an "encoder" event ID 
+# get an ID for an "encoder" event 
 EVT_ENCODER_ID = wx.NewId()
 
 # define a macro for connecting event handlers to the encoder events
-def EVT_ENCODER(win, func):
-   """Define Result Event."""
-   win.Connect(-1, -1, EVT_ENCODER_ID, func)
+def EVT_ENCODER(theWin, theFunc):
+   theWin.Connect(-1, -1, EVT_ENCODER_ID, theFunc)
 
 # a simple event to throw out of the encoder
 class encoderEvent(wx.PyEvent):
-   def __init__(self, data):
+   def __init__(self, threadID, data):
        wx.PyEvent.__init__(self)
        self.SetEventType(EVT_ENCODER_ID)
+       self.threadID = threadID
        self.data = data
 
 # the encoder thread itself
@@ -503,10 +502,10 @@ class encoderThread(threading.Thread):
         for i in range(10):
             time.sleep(1)
             if self.doCommand == "abort":
-                wx.PostEvent(self.notifyWindow, encoderEvent([self.threadID,"abort"]) )
+                wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID,"abort") )
             print "thread %d tick tock.." % self.threadID
                 
-        wx.PostEvent(self.notifyWindow, encoderEvent([self.threadID,"done"]) )
+        wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID,"done") )
 
     # func called by the main thread in order to issue commands
     def setCommand(self,command):
