@@ -9,6 +9,8 @@ import wx
 import mythtv
 import threading
 
+import time   # for debugging only so far
+
 # begin wxGlade: extracode
 # end wxGlade
 
@@ -151,11 +153,11 @@ class mainFrame(wx.Frame):
         self.contextMenuEntriesById = {}
         for item in [ "Preview", "Delete", "Encode" ]:
             self.contextMenuEntriesById[ wx.NewId() ] = item
-        
+
     def __set_properties(self):
         # begin wxGlade: mainFrame.__set_properties
         self.SetTitle("MythRip - Main")
-        self.SetSize((571, 418))
+        self.SetSize((720, 430))
         self.mainFrameStatusbar.SetStatusWidths([-1])
         # statusbar fields
         mainFrameStatusbar_fields = ["mainFrame_statusbar"]
@@ -405,11 +407,14 @@ class encoderQueueFrame(wx.Frame):
         self.encoderQueueListCtrl.InsertColumn(1, "Episode")
         self.encoderQueueListCtrl.InsertColumn(2, "Air Time")
         self.encoderQueueListCtrl.InsertColumn(3, "Progress")
+        
+        # connect up a handler to update the GUI upon events from the encoder threads
+        EVT_ENCODER(self, self.onEncoderEvent)    
 
     def __set_properties(self):
         # begin wxGlade: encoderQueueFrame.__set_properties
         self.SetTitle("MythRip - Encoding Queue")
-        self.SetSize((400, 300))
+        self.SetSize((640, 300))
         self.encoderQueueFrameToolbar.Realize()
         # end wxGlade
 
@@ -426,11 +431,26 @@ class encoderQueueFrame(wx.Frame):
     # meat
 
     def addProgram(self,program):
-        self.threads.append( encoderThread(program, len(self.threads)) )
+        thread_id = len(self.threads)
+        self.threads.append( encoderThread(program, thread_id, self) )
         self.threads[-1].start()
+        
+        self.encoderQueueListCtrl.InsertStringItem(thread_id, program.title)
+        self.encoderQueueListCtrl.SetStringItem(thread_id, 1, program.subtitle)
+        self.encoderQueueListCtrl.SetStringItem(thread_id, 2, str(program.starttime))
+        self.encoderQueueListCtrl.SetStringItem(thread_id, 3, 'Initializing...')
+        self.encoderQueueListCtrl.SetItemData(thread_id, thread_id) # set item data to be the same as the indexes initially
+        self.encoderQueueListCtrl.SetColumnWidth(0, wx.LIST_AUTOSIZE)
+        self.encoderQueueListCtrl.SetColumnWidth(1, wx.LIST_AUTOSIZE)
+        self.encoderQueueListCtrl.SetColumnWidth(2, wx.LIST_AUTOSIZE)
+        self.encoderQueueListCtrl.SetColumnWidth(3, wx.LIST_AUTOSIZE)
 
-        
-        
+    # when an encoder event is received this is called
+    def onEncoderEvent(self, event):
+        (thread_id,eventString) = event.data
+        print "thread %d says %s" % (thread_id,eventString)
+
+
     ##########################################################################################
     # event handlers
     def onCloseButton(self, event): # wxGlade: encoderQueueFrame.<event_handler>
@@ -442,12 +462,32 @@ class encoderQueueFrame(wx.Frame):
 
 # end of class encoderQueueFrame
 
+###################################################################
+
+# define an "encoder" event ID 
+EVT_ENCODER_ID = wx.NewId()
+
+# define a macro for connecting event handlers to the encoder events
+def EVT_ENCODER(win, func):
+   """Define Result Event."""
+   win.Connect(-1, -1, EVT_ENCODER_ID, func)
+
+# a simple event to throw out of the encoder
+class encoderEvent(wx.PyEvent):
+   def __init__(self, data):
+       wx.PyEvent.__init__(self)
+       self.SetEventType(EVT_ENCODER_ID)
+       self.data = data
+
+# the encoder thread itself
 class encoderThread(threading.Thread):
     
-    def __init__(self,program,threadID):
-
+    def __init__(self, program, threadID, notifyWindow):
+        
+        self.notifyWindow = notifyWindow
         self.program = program
         self.threadID = threadID
+        self.doCommand = ""
 
         # load parent constructor
         threading.Thread.__init__(self)
@@ -456,24 +496,22 @@ class encoderThread(threading.Thread):
         
         # grab a reference to the app
         global mythRip
+        
+        print "thread %d : %s" % (self.threadID, self.program)
 
-        # snag a reference to the queue wxListCtrl
-        queuelist = mythRip.mainFrameInstance.encoderQueueFrame.encoderQueueListCtrl
-        
-        print "hi im a thread that is supposed to encode ",self.program
-        
-        # apparently this is not going to work, i'm getting x assertion failures .. come up with the proper way to interface with parent thread's GUI
-        queuelist.InsertStringItem(self.threadID, self.program.title)
-        queuelist.SetStringItem(self.threadID, 1, self.program.subtitle)
-        queuelist.SetStringItem(self.threadID, 2, str(self.program.starttime))
-        queuelist.SetStringItem(self.threadID, 3, 'Initializing...')
-        queuelist.SetItemData(self.threadID, self.threadID) # set item data to be the same as the indexes initially
-        queuelist.SetColumnWidth(0, wx.LIST_AUTOSIZE)
-        queuelist.SetColumnWidth(1, wx.LIST_AUTOSIZE)
-        queuelist.SetColumnWidth(2, wx.LIST_AUTOSIZE)
-        queuelist.SetColumnWidth(3, wx.LIST_AUTOSIZE)
+        for i in range(10):
+            time.sleep(1)
+            if self.doCommand == "abort":
+                wx.PostEvent(self.notifyWindow, encoderEvent([self.threadID,"abort"]) )
+            print "thread %d tick tock.." % self.threadID
+                
+        wx.PostEvent(self.notifyWindow, encoderEvent([self.threadID,"done"]) )
 
+    # func called by the main thread in order to issue commands
+    def setCommand(self,command):
+        self.doCommand = setCommand
         
+
 class preferencesFrame(wx.Frame):
     def __init__(self, *args, **kwds):
         # begin wxGlade: preferencesFrame.__init__
