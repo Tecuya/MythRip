@@ -8,6 +8,7 @@ import sys
 import wx
 import mythtv
 import threading
+import subprocess
 
 import time   # for debugging only so far
 
@@ -406,14 +407,17 @@ class encoderQueueFrame(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.onToolbarUp, id=toolbarUp)
         self.Bind(wx.EVT_TOOL, self.onToolbarDown, id=toolbarDown)
         self.Bind(wx.EVT_TOOL, self.onToolbarOptions, id=toolbarOptions)
-        
         self.Bind(wx.EVT_BUTTON, self.onCloseButton, self.encoderQueueCloseButton)
         # end wxGlade
         
         ##########################
+        
+        # this variable tracks the thread IDs .. 
+        # because I use this style of identifying threads eventually the ID would wrap.. so there's the app's max threads limit!
+        self.nextThreadID = 0
 
         # this variable contains a list of encoder jobs, including their thread handles
-        self.threads = []
+        self.threads = {}
 
         # set up the listctrl
         self.encoderQueueListCtrl.InsertColumn(0, "Show")
@@ -445,45 +449,101 @@ class encoderQueueFrame(wx.Frame):
     # meat
 
     def addProgram(self,program):
-        thread_id = len(self.threads)
-        self.threads.append( encoderThread(program, thread_id, self) )
-        self.threads[-1].start()
         
-        self.encoderQueueListCtrl.InsertStringItem(thread_id, program.title)
-        self.encoderQueueListCtrl.SetStringItem(thread_id, 1, program.subtitle)
-        self.encoderQueueListCtrl.SetStringItem(thread_id, 2, str(program.starttime))
-        self.encoderQueueListCtrl.SetStringItem(thread_id, 3, 'Initializing...')
-        self.encoderQueueListCtrl.SetItemData(thread_id, thread_id) # set item data to be the same as the indexes initially
+        # grab the next thread id
+        threadID = self.nextThreadID
+        
+        # prepare the thread id for the thread after this one
+        self.nextThreadID += 1
+        
+        # create the thread.  
+        self.threads[threadID] = encoderThread(program, threadID, self)
+        self.threads[threadID].start()
+                
+        # determine the number of items in the control and add in the next available slot
+        newListIndex = self.encoderQueueListCtrl.GetItemCount()
+
+        # insert the new list ctrl item
+        self.encoderQueueListCtrl.InsertStringItem(newListIndex, program.title)
+        self.encoderQueueListCtrl.SetStringItem(newListIndex, 1, program.subtitle)
+        self.encoderQueueListCtrl.SetStringItem(newListIndex, 2, str(program.starttime))
+        self.encoderQueueListCtrl.SetStringItem(newListIndex, 3, 'Initializing...')
+        self.encoderQueueListCtrl.SetItemData(newListIndex, threadID) # store the thread id with each item
+
+        # keep the table clean with some column resizing
+        self.resizeEncoderQueueListCtrl()
+                
+    def getSelectedEncoders(self):
+        
+        # iterate through items in the list control, reconcile them to program objects, form a list, return it
+        returnList = []
+
+        item = self.encoderQueueListCtrl.GetFirstSelected()
+        while item != -1:
+            thread = self.threads[ self.encoderQueueListCtrl.GetItemData(item) ]                        
+            returnList.append(program)
+            item = self.encoderQueueListCtrl.GetNextSelected(item)
+        
+        return returnList
+
+
+    def resizeEncoderQueueListCtrl(self):
         self.encoderQueueListCtrl.SetColumnWidth(0, wx.LIST_AUTOSIZE)
         self.encoderQueueListCtrl.SetColumnWidth(1, wx.LIST_AUTOSIZE)
         self.encoderQueueListCtrl.SetColumnWidth(2, wx.LIST_AUTOSIZE)
         self.encoderQueueListCtrl.SetColumnWidth(3, wx.LIST_AUTOSIZE)
-        
-        
+    
+    ##########################################################################################
+    # event handlers
+
+
     # when an encoder event is received this is called
     def onEncoderEvent(self, event):
 
         print "Thread %d says %s" % (event.threadID, event.data)
         
+        # we pretty much need this no matter what
+        listCtrlIndex = self.encoderQueueListCtrl.FindItemData(0,event.threadID)
+        
         if event.data == "terminating":
             # if the thread died, remove it from the thread pool, and remove the item from the listctrl
 
-            print "Thread %d has terminated." % event.threadID
-
-            del self.threads[ event.threadID ]
+            print "Thread %d removed from thread pool." % event.threadID
             
-        elif event.data == "done":
-            pass 
+            del self.threads[event.threadID]
             
-        
+            print "- Thread %d is at position %d in the list ctrl, removing it" % (event.threadID,listCtrlIndex)
+            
+            self.encoderQueueListCtrl.DeleteItem(listCtrlIndex)
+            
+        elif event.data == "done":            
+            self.encoderQueueListCtrl.SetStringItem(listCtrlIndex, 3, "Done")
 
-    ##########################################################################################
-    # event handlers
+        event.Skip()
+
     def onCloseButton(self, event): # wxGlade: encoderQueueFrame.<event_handler>
         self.Hide()
+        event.Skip()
 
     def onToolbarPause(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+        
         print "Event handler `onToolbarPause' not implemented"
+        event.Skip()
+
+    def onToolbarRemove(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+        print "Event handler `onToolbarRemove' not implemented"
+        event.Skip()
+
+    def onToolbarUp(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+        print "Event handler `onToolbarUp' not implemented"
+        event.Skip()
+
+    def onToolbarDown(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+        print "Event handler `onToolbarDown' not implemented"
+        event.Skip()
+
+    def onToolbarOptions(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+        print "Event handler `onToolbarOptions' not implemented"
         event.Skip()
 
 # end of class encoderQueueFrame
@@ -520,18 +580,39 @@ class encoderThread(threading.Thread):
         threading.Thread.__init__(self)
     
     def run(self):
-        
-        # grab a reference to the app
-        global mythRip
-        
-        print "thread %d : %s" % (self.threadID, self.program)
+                
+        print "Thread ID %d : %s" % (self.threadID, self.program)
 
-        for i in range(10):
-            time.sleep(1)
+        
+        cmd = ['/usr/bin/mythtranscode',
+               '--showprogress',
+               '-p','0',
+               '-c',str(self.program.chanid),
+               '-s',self.program.starttime.strftime('%Y-%m-%dT%H:%M:%S'),
+               '-f','/tmp/verytmp',
+               '--honorcutlist']
+        
+        process = subprocess.Popen(cmd, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        while True:
+
+            print "stdout ",process.stdout.read()
+            print "stderr ",process.stderr.read()
+
+            if process.poll() == None:
+                break
+
+            # check for the abort command and if its there then bail!
             if self.doCommand == "abort":
                 wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID,"abort") )
-            print "thread %d tick tock.." % self.threadID
-                
+                break
+
+            time.sleep(1)
+
+        # i'm hoping this kills the subprocess... if not i might just use process.pid to kill it
+        del process
+
+        # the last thing the thread does is tell the main thread its terminating, and thats a rule
         wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID,"terminating") )
 
     # func called by the main thread in order to issue commands
