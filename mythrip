@@ -611,17 +611,8 @@ class encoderThread(threading.Thread):
                '-f',fifoDir,
                '--honorcutlist']
         
-        # use sockets for the subprocess file objects so we can read from stdout/stderr in a non-blocking fashion
-        self.stdoutSock, stdoutChildSock = socket.socketpair() 
-        self.stderrSock, stderrChildSock = socket.socketpair() 
-       
-        self.stdoutSock.settimeout(0.2)
-        self.stderrSock.settimeout(0.2)
-
-        self.process = subprocess.Popen(cmd, stdin=None, stdout=stdoutChildSock.fileno(), stderr=stderrChildSock.fileno())
+        self.process = asyncsubprocess.Popen(cmd, stdin=None, stdout=PIPE, stderr=PIPE)
     
-        # set sock timeouts?
-
         self.sendEncoderEvent( "started", "mythtranscode started" )
 
         while True:
@@ -645,16 +636,14 @@ class encoderThread(threading.Thread):
         
     def parseSubprocessOutput(self):
 
+        
         # read from stdout/stderr
         newstdout = ""
         newstderr = ""
         
-        try:
-            newstdout = self.stdoutSock.recv(1024)
-            newstderr = self.stderrSock.recv(1024)
+        newstdout = asyncsubprocess.recv_some(self.process)
+        newstderr = asyncsubprocess.recv_some(self.process,stderr=True)
 
-        except socket.timeout, e:
-            pass 
 
         self.sendEncoderEvent( "started", "mythtranscode streams read" )
 
