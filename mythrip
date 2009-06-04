@@ -608,7 +608,7 @@ class encoderThread(threading.Thread):
                '--showprogress',
                '-p','autodetect',
                '-c',str(self.program.chanid),
-               '-s',self.program.starttime.strftime('%Y-%m-%dT%H:%M:%S'),
+               '-s',self.program.recstartts.strftime('%Y-%m-%dT%H:%M:%S'),
                '-f',fifoDir,
                '--honorcutlist']
         
