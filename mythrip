@@ -4,11 +4,15 @@
 
 # mythrip: GUI tool to export MythTV recordings to various portable media files, and manage recordings in general
 
+import os
+import shutil
 import sys
 import wx
 import mythtv
 import threading
 import subprocess
+import asyncsubprocess
+import socket
 
 import time   # for debugging only so far
 
@@ -500,12 +504,12 @@ class encoderQueueFrame(wx.Frame):
     # when an encoder event is received this is called
     def onEncoderEvent(self, event):
 
-        print "Thread %d says %s" % (event.threadID, event.data)
+        print "Thread %d state %s : %s" % (event.threadID, event.threadState, event.listMessage)
         
         # we pretty much need this no matter what
         listCtrlIndex = self.encoderQueueListCtrl.FindItemData(0,event.threadID)
         
-        if event.data == "terminating":
+        if event.threadState == "terminating":
             # if the thread died, remove it from the thread pool, and remove the item from the listctrl
 
             print "Thread %d removed from thread pool." % event.threadID
@@ -516,9 +520,9 @@ class encoderQueueFrame(wx.Frame):
             
             self.encoderQueueListCtrl.DeleteItem(listCtrlIndex)
             
-        elif event.data == "done":            
-            self.encoderQueueListCtrl.SetStringItem(listCtrlIndex, 3, "Done")
 
+        self.encoderQueueListCtrl.SetStringItem(listCtrlIndex, 3, event.listMessage)
+        
         event.Skip()
 
     def onCloseButton(self, event): # wxGlade: encoderQueueFrame.<event_handler>
@@ -560,11 +564,12 @@ def EVT_ENCODER(theWin, theFunc):
 
 # a simple event to throw out of the encoder
 class encoderEvent(wx.PyEvent):
-   def __init__(self, threadID, data):
+   def __init__(self, threadID, threadState, listMessage):
        wx.PyEvent.__init__(self)
        self.SetEventType(EVT_ENCODER_ID)
        self.threadID = threadID
-       self.data = data
+       self.threadState = threadState
+       self.listMessage = listMessage
 
 # the encoder thread itself
 class encoderThread(threading.Thread):
@@ -575,6 +580,7 @@ class encoderThread(threading.Thread):
         self.program = program
         self.threadID = threadID
         self.doCommand = ""
+        self.process = False
 
         # load parent constructor
         threading.Thread.__init__(self)
@@ -582,42 +588,100 @@ class encoderThread(threading.Thread):
     def run(self):
                 
         print "Thread ID %d : %s" % (self.threadID, self.program)
-
         
+        # get directory for our fifos to live in
+        fifoDir = '/tmp/mythrip-%d-fifo' % self.threadID
+
+        if os.path.isdir(fifoDir):
+            try:
+                shutil.rmtree(fifoDir)
+            except Exception, e:
+                self.endThread("failed","Could not remove stale fifo directory: %s" % e)
+
+        try:
+            os.mkdir(fifoDir)
+        except Exception, e:
+            self.endThread("failed","Failed creating fifo directories: %s" % e)
+            
         cmd = ['/usr/bin/mythtranscode',
                '--showprogress',
-               '-p','0',
+               '-p','autodetect',
                '-c',str(self.program.chanid),
                '-s',self.program.starttime.strftime('%Y-%m-%dT%H:%M:%S'),
-               '-f','/tmp/verytmp',
+               '-f',fifoDir,
                '--honorcutlist']
         
-        process = subprocess.Popen(cmd, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
+        # use sockets for the subprocess file objects so we can read from stdout/stderr in a non-blocking fashion
+        self.stdoutSock, stdoutChildSock = socket.socketpair() 
+        self.stderrSock, stderrChildSock = socket.socketpair() 
+       
+        self.stdoutSock.settimeout(0.2)
+        self.stderrSock.settimeout(0.2)
+
+        self.process = subprocess.Popen(cmd, stdin=None, stdout=stdoutChildSock.fileno(), stderr=stderrChildSock.fileno())
+    
+        # set sock timeouts?
+
+        self.sendEncoderEvent( "started", "mythtranscode started" )
+
         while True:
+            
+            self.parseSubprocessOutput()
 
-            print "stdout ",process.stdout.read()
-            print "stderr ",process.stderr.read()
-
-            if process.poll() == None:
+            # if poll returns none, the process is dead
+            if self.process.poll() == None:                
+                self.parseSubprocessOutput()
+                self.endThread("done","Encoder poll returned None")                
                 break
 
             # check for the abort command and if its there then bail!
             if self.doCommand == "abort":
-                wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID,"abort") )
+                self.endThread("abort","Thread aborted.")
                 break
 
+            # wait a second before checking the subprocess again
             time.sleep(1)
 
-        # i'm hoping this kills the subprocess... if not i might just use process.pid to kill it
-        del process
+        
+    def parseSubprocessOutput(self):
 
-        # the last thing the thread does is tell the main thread its terminating, and thats a rule
-        wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID,"terminating") )
+        # read from stdout/stderr
+        newstdout = ""
+        newstderr = ""
+        
+        try:
+            newstdout = self.stdoutSock.recv(1024)
+            newstderr = self.stderrSock.recv(1024)
+
+        except socket.timeout, e:
+            pass 
+
+        self.sendEncoderEvent( "started", "mythtranscode streams read" )
+
+        # print em out if there was anything
+        if len(newstdout):
+            print "stdout ",newstdout
+        if len(newstderr):
+            print "stderr ",newstderr
+
+
 
     # func called by the main thread in order to issue commands
     def setCommand(self,command):
         self.doCommand = setCommand
+
+    def endThread(self,threadState,listMessage):
+
+        # i'm hoping this kills the subprocess... if not i might just use process.pid to kill it
+        del self.process
+
+        # the last thing the thread does is tell the main thread its terminating, and thats a rule
+        self.sendEncoderEvent( threadState, listMessage )
+
+        sys.exit()
+       
+    def sendEncoderEvent(self, threadState, listMessage):
+        wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID, threadState, listMessage))
 
 ###########################################################################
         
