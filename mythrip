@@ -632,7 +632,19 @@ class encoderThread(threading.Thread):
                        '-demuxer','20','-audio-demuxer','20',
                        '-rawvideo','w=720:h=480:fps=29.970',
                        '-rawaudio','rate=48000:channels=2','-demuxer','26',# '-rawvideo',
-                       '-ovc','xvid','-oac','copy','-xvidencopts','bitrate=684','-vf','lavcdeint',
+                       '-oac','copy',
+                       
+                       # xvid
+                       '-ovc','xvid',
+                       '-xvidencopts','bitrate=684',
+
+                       # '-passlogfile',os.path.join(fifoDir,'logfile.log'),
+
+                       # x264
+                       '-ovc','x264',
+                       '-x264encopts','qp=38:bframes=1', # :pass=1', # 'subq=5:8x8dct:frameref=2:bframes=3:b_pyramid:weight_b',
+
+                       '-vf','lavcdeint',
                        '-o', '/home/sean/Desktop/video-thread-%d.avi' % self.threadID]
 
         self.stdoutSockMenc, stdoutChildSockMenc = socket.socketpair() 
