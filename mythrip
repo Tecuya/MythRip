@@ -580,7 +580,7 @@ class encoderThread(threading.Thread):
         self.program = program
         self.threadID = threadID
         self.doCommand = ""
-        self.process = False
+        self.mythTranscodeProcess = False
 
         # load parent constructor
         threading.Thread.__init__(self)
@@ -602,8 +602,9 @@ class encoderThread(threading.Thread):
             os.mkdir(fifoDir)
         except Exception, e:
             self.endThread("failed","Failed creating fifo directories: %s" % e)
-            
-        cmd = ['/usr/bin/mythtranscode',
+
+        # fire up mythtranscode 
+        mythTranscodeCmd = ['/usr/bin/mythtranscode',
                '--showprogress',
                '-p','autodetect',
                '-c',str(self.program.chanid),
@@ -611,19 +612,50 @@ class encoderThread(threading.Thread):
                '-f',fifoDir,
                '--honorcutlist']
         
-        self.process = asyncsubprocess.Popen(cmd, stdin=None, stdout=PIPE, stderr=PIPE)
+        
+        # use sockets for the subprocess file objects so we can read from stdout/stderr in a non-blocking fashion
+        self.stdoutSockMT, stdoutChildSockMT = socket.socketpair() 
+        self.stderrSockMT, stderrChildSockMT = socket.socketpair() 
+        self.stdoutSockMT.settimeout(0.1)
+        self.stderrSockMT.settimeout(0.1)
+
+        self.mythTranscodeProcess = subprocess.Popen(mythTranscodeCmd, stdin=None, stdout=stdoutChildSockMT.fileno(), stderr=stderrChildSockMT.fileno())
+
+        # replace me with a thing that waits to verify the fifo is up and ready
+        time.sleep(1)
+        
+        # now fire up mencoder reading from mythtranscode's fifo
+        # mencoder -aspect 1.33333333333333 -noskip -idx /tmp/fifodir_7895/vidout -audiofile /tmp/fifodir_7895/audout -demuxer 20 -audio-demuxer 20 -rawaudio rate=48000:channels=2 -demuxer 26 -rawvideo w=720:h=480:fps=29.970 -ovc xvid -passlogfile /tmp/xvid.7895.log -oac copy -xvidencopts bitrate=684:pass=1:quant_type=mpeg:threads=2:keyframe_boost=10:kfthreshold=1:kfreduction=20 -o /dev/null -vf crop=700:468:10:6,lavcdeint,scale=640:480
+
+        mencoderCmd = ['/usr/bin/mencoder','-noskip','-idx',
+                       os.path.join(fifoDir, 'vidout'),
+                       '-audiofile', os.path.join(fifoDir,'audout'),
+                       '-demuxer','20','-audio-demuxer','20',
+                       '-rawvideo','w=720:h=480:fps=29.970',
+                       '-rawaudio','rate=48000:channels=2','-demuxer','26',# '-rawvideo',
+                       '-ovc','xvid','-oac','copy','-xvidencopts','bitrate=684','-vf','lavcdeint',
+                       '-o', '/home/sean/Desktop/video-thread-%d.avi' % self.threadID]
+
+        self.stdoutSockMenc, stdoutChildSockMenc = socket.socketpair() 
+        self.stderrSockMenc, stderrChildSockMenc = socket.socketpair() 
+        self.stdoutSockMenc.settimeout(0.1)
+        self.stderrSockMenc.settimeout(0.1)
+        
+        self.mencoderProcess = subprocess.Popen(mencoderCmd, stdin=None, stdout=stdoutChildSockMT.fileno(), stderr=stderrChildSockMT.fileno())
     
-        self.sendEncoderEvent( "started", "mythtranscode started" )
+
+        
+        self.sendEncoderEvent( "started", "Encoding started." )
 
         while True:
             
             self.parseSubprocessOutput()
-
-            # if poll returns none, the process is dead
-            if self.process.poll() == None:                
-                self.parseSubprocessOutput()
-                self.endThread("done","Encoder poll returned None")                
-                break
+            
+            # it seems we are getting a None result before the thread actually dies
+            # if self.mythTranscodeProcess.poll() == None:                
+            # self.parseSubprocessOutput()
+            # self.endThread("done","Encoder poll returned None")                
+            # break
 
             # check for the abort command and if its there then bail!
             if self.doCommand == "abort":
@@ -635,23 +667,25 @@ class encoderThread(threading.Thread):
 
         
     def parseSubprocessOutput(self):
-
         
-        # read from stdout/stderr
-        newstdout = ""
-        newstderr = ""
-        
-        newstdout = asyncsubprocess.recv_some(self.process)
-        newstderr = asyncsubprocess.recv_some(self.process,stderr=True)
+        # read from all processes
+        for (name,(stdoutSock,stderrSock)) in {"mt": [self.stdoutSockMT, self.stderrSockMT], 
+                                               "menc": [self.stdoutSockMenc, self.stderrSockMenc] }.iteritems():
+            newstdout = ""
+            newstderr = ""
 
+            try:
+                newstdout = stdoutSock.recv(1024)
+                newstderr = stderrSock.recv(1024)
 
-        self.sendEncoderEvent( "started", "mythtranscode streams read" )
+            except socket.timeout, e:
+                pass 
 
-        # print em out if there was anything
-        if len(newstdout):
-            print "stdout ",newstdout
-        if len(newstderr):
-            print "stderr ",newstderr
+            # print em out if there was anything
+            if len(newstdout):
+                print "STDOUT %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstdout)
+            if len(newstderr):
+                print "STDERR %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstderr)
 
 
 
@@ -662,7 +696,7 @@ class encoderThread(threading.Thread):
     def endThread(self,threadState,listMessage):
 
         # i'm hoping this kills the subprocess... if not i might just use process.pid to kill it
-        del self.process
+        del self.mythTranscodeProcess
 
         # the last thing the thread does is tell the main thread its terminating, and thats a rule
         self.sendEncoderEvent( threadState, listMessage )
