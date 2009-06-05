@@ -85,16 +85,19 @@ class mainFrame(wx.Frame):
         # end wxGlade
 
         ################################################################################
-        
-        # initialize the encoder queue window
-        self.encoderQueueFrame = encoderQueueFrame(parent=self)
-        self.preferencesFrame = preferencesFrame(parent=self)
 
         # establish our MythTV connection using the mythtv python bindings
         try: 
             self.mythTV = mythtv.MythTV()
         except mythtv.MythError, e:
             print "Failed initializing MythTV environment; %s" % e.message
+        
+        # set up the preferences frame 
+        self.preferencesFrame = preferencesFrame(parent=self,self.prefs)
+        self.Bind(wx.EVT_BUTTON, self.savePreferences, self.preferencesFrame.preferencesOKButton)
+
+        # set up the encoder queue window
+        self.encoderQueueFrame = encoderQueueFrame(parent=self)
         
         # query recordings from the backend
         rawRecordings = self.mythTV.backendCommand('QUERY_RECORDINGS Play').split(mythtv.BACKEND_SEP)
@@ -158,6 +161,10 @@ class mainFrame(wx.Frame):
         self.contextMenuEntriesById = {}
         for item in [ "Preview", "Delete", "Encode" ]:
             self.contextMenuEntriesById[ wx.NewId() ] = item
+            
+        # set up preference dictionary and load the prefs in to it
+        self.prefs = {}
+        self.loadPreferences()
 
     def __set_properties(self):
         # begin wxGlade: mainFrame.__set_properties
@@ -236,7 +243,13 @@ class mainFrame(wx.Frame):
         self.mainFrameStatusbar.PushStatusText('Added %d recordings to queue.' % addcount)
             
         
+    def savePreferences(self, event):
+        print "saving prefs"
+        event.Skip()
 
+    def loadPreferences(self):
+        print "loading prefs"
+        
     ###########################################################################
     # event handler land
 
@@ -727,70 +740,118 @@ class preferencesFrame(wx.Frame):
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
         self.preferencesNotebook = wx.Notebook(self, -1, style=0)
-        self.preferencesNotebook_pane_4 = wx.Panel(self.preferencesNotebook, -1)
+        self.preferencesFilesPane = wx.Panel(self.preferencesNotebook, -1)
+        self.preferencesQueuePane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesEncodersPane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesMythTVPane = wx.Panel(self.preferencesNotebook, -1)
-        self.label_10 = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
-        self.choice_1 = wx.Choice(self.preferencesEncodersPane, -1, choices=[])
-        self.label_11 = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec: ")
-        self.choice_2 = wx.Choice(self.preferencesEncodersPane, -1, choices=[])
-        self.label_12 = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec Options (): ")
-        self.text_ctrl_2 = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
-        self.label_13 = wx.StaticText(self.preferencesEncodersPane, -1, "Two-Pass Video: ")
-        self.choice_3 = wx.Choice(self.preferencesEncodersPane, -1, choices=[])
-        self.label_14 = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec: ")
-        self.choice_4 = wx.Choice(self.preferencesEncodersPane, -1, choices=[])
-        self.label_15 = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec Options ():")
-        self.text_ctrl_3 = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
-        self.label_16 = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Filter String (-af): ")
-        self.text_ctrl_4 = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
-        self.preferencesFilenamesPane = wx.Panel(self.preferencesNotebook, -1)
-        self.label_8 = wx.StaticText(self.preferencesNotebook_pane_4, -1, "Save Encoded Videos In: ")
-        self.window_1 = wx.DirPickerCtrl(self.preferencesNotebook_pane_4, -1)
-        self.label_9 = wx.StaticText(self.preferencesNotebook_pane_4, -1, "File Naming Template: ")
-        self.text_ctrl_1 = wx.TextCtrl(self.preferencesNotebook_pane_4, -1, "")
+        self.prefsMasterServerHostLabel = wx.StaticText(self.preferencesMythTVPane, -1, " Master Server Host/IP: ")
+        self.prefsMasterServerHostInput = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.prefsMasterServerPortLabel = wx.StaticText(self.preferencesMythTVPane, -1, "Master Server Port: ")
+        self.prefsMasterServerPortText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.prefsMysqlHostLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Hostname: ")
+        self.prefsMysqlHostText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.prefsMysqlPortLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Port: ")
+        self.prefsMysqlPortText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.prefsMysqlUserLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL User: ")
+        self.prefsMysqlUserText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.prefsMysqlPasswordLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Password: ")
+        self.prefsMysqlPasswordText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.prefsMysqlDBNameLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Database Name: ")
+        self.prefsMysqlDBNameText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.prefsContainerFormatLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
+        self.prefsContainerFormatChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["avi", "mkv"])
+        self.prefsVideoCodecLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec: ")
+        self.prefsVideoCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["xvid", "x264"])
+        self.prefsVideoCodecOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec Options (): ")
+        self.prefsVideoCodecOptionsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.prefsTwoPassVideoLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Two-Pass Video: ")
+        self.prefsTwoPassVideoChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["Yes", "No"])
+        self.prefsAudioCodecLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec: ")
+        self.prefsAudioCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["passthrough", "mp3lame", "ogg", "whatever"])
+        self.prefsAudioCodecOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec Options ():")
+        self.prefsAudioCodecOptionsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.prefsAudioFilterLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Filter String (-af): ")
+        self.prefsAudioFilterText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.label_1 = wx.StaticText(self.preferencesQueuePane, -1, "Thread count: ")
+        self.spin_ctrl_1 = wx.SpinCtrl(self.preferencesQueuePane, -1, "", min=0, max=100)
+        self.label_2 = wx.StaticText(self.preferencesQueuePane, -1, "Remove Completed Items: ")
+        self.choice_6 = wx.Choice(self.preferencesQueuePane, -1, choices=["Yes", "No"])
+        self.label_8 = wx.StaticText(self.preferencesFilesPane, -1, "Save Encoded Videos In: ")
+        self.window_1 = wx.DirPickerCtrl(self.preferencesFilesPane, -1)
+        self.label_9 = wx.StaticText(self.preferencesFilesPane, -1, "File Naming Template: ")
+        self.text_ctrl_1 = wx.TextCtrl(self.preferencesFilesPane, -1, "")
         self.preferencesCancelButton = wx.Button(self, wx.ID_CANCEL, "")
         self.preferencesOKButton = wx.Button(self, wx.ID_OK, "")
 
         self.__set_properties()
         self.__do_layout()
+
+        self.Bind(wx.EVT_BUTTON, self.onCancelButton, self.preferencesCancelButton)
+        self.Bind(wx.EVT_BUTTON, self.onOKButton, self.preferencesOKButton)
         # end wxGlade
 
     def __set_properties(self):
         # begin wxGlade: preferencesFrame.__set_properties
         self.SetTitle("MythRip - Preferences")
+        self.prefsContainerFormatChoice.SetSelection(0)
+        self.prefsVideoCodecChoice.SetSelection(0)
+        self.prefsTwoPassVideoChoice.SetSelection(0)
+        self.prefsAudioCodecChoice.SetSelection(0)
+        self.choice_6.SetSelection(0)
         # end wxGlade
 
     def __do_layout(self):
         # begin wxGlade: preferencesFrame.__do_layout
         preferencesSizer = wx.BoxSizer(wx.VERTICAL)
         preferencesButtonSizer = wx.BoxSizer(wx.HORIZONTAL)
-        grid_sizer_3 = wx.GridSizer(2, 2, 0, 0)
-        grid_sizer_4 = wx.GridSizer(7, 2, 0, 0)
-        grid_sizer_4.Add(self.label_10, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        grid_sizer_4.Add(self.choice_1, 0, 0, 0)
-        grid_sizer_4.Add(self.label_11, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        grid_sizer_4.Add(self.choice_2, 0, 0, 0)
-        grid_sizer_4.Add(self.label_12, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        grid_sizer_4.Add(self.text_ctrl_2, 0, 0, 0)
-        grid_sizer_4.Add(self.label_13, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        grid_sizer_4.Add(self.choice_3, 0, 0, 0)
-        grid_sizer_4.Add(self.label_14, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        grid_sizer_4.Add(self.choice_4, 0, 0, 0)
-        grid_sizer_4.Add(self.label_15, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        grid_sizer_4.Add(self.text_ctrl_3, 0, 0, 0)
-        grid_sizer_4.Add(self.label_16, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        grid_sizer_4.Add(self.text_ctrl_4, 0, 0, 0)
-        self.preferencesEncodersPane.SetSizer(grid_sizer_4)
-        grid_sizer_3.Add(self.label_8, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        grid_sizer_3.Add(self.window_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
-        grid_sizer_3.Add(self.label_9, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        grid_sizer_3.Add(self.text_ctrl_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
-        self.preferencesNotebook_pane_4.SetSizer(grid_sizer_3)
+        preferencesFilesSizer = wx.GridSizer(2, 2, 0, 0)
+        preferencesQueueSIzer = wx.GridSizer(2, 2, 0, 0)
+        preferencesEncodersSizer = wx.GridSizer(7, 2, 0, 0)
+        preferencesMythTVSizer = wx.GridSizer(7, 2, 0, 0)
+        preferencesMythTVSizer.Add(self.prefsMasterServerHostLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.prefsMasterServerHostInput, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.prefsMasterServerPortLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.prefsMasterServerPortText, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.prefsMysqlHostLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.prefsMysqlHostText, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.prefsMysqlPortLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.prefsMysqlPortText, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.prefsMysqlUserLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.prefsMysqlUserText, 0, wx.EXPAND, 0)
+        preferencesMythTVSizer.Add(self.prefsMysqlPasswordLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.prefsMysqlPasswordText, 0, wx.EXPAND, 0)
+        preferencesMythTVSizer.Add(self.prefsMysqlDBNameLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.prefsMysqlDBNameText, 0, wx.EXPAND, 0)
+        self.preferencesMythTVPane.SetSizer(preferencesMythTVSizer)
+        preferencesEncodersSizer.Add(self.prefsContainerFormatLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.prefsContainerFormatChoice, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.prefsVideoCodecLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.prefsVideoCodecChoice, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.prefsVideoCodecOptionsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.prefsVideoCodecOptionsText, 0, wx.EXPAND, 0)
+        preferencesEncodersSizer.Add(self.prefsTwoPassVideoLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.prefsTwoPassVideoChoice, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.prefsAudioCodecLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.prefsAudioCodecChoice, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.prefsAudioCodecOptionsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.prefsAudioCodecOptionsText, 0, wx.EXPAND, 0)
+        preferencesEncodersSizer.Add(self.prefsAudioFilterLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.prefsAudioFilterText, 0, wx.EXPAND, 0)
+        self.preferencesEncodersPane.SetSizer(preferencesEncodersSizer)
+        preferencesQueueSIzer.Add(self.label_1, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesQueueSIzer.Add(self.spin_ctrl_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesQueueSIzer.Add(self.label_2, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesQueueSIzer.Add(self.choice_6, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        self.preferencesQueuePane.SetSizer(preferencesQueueSIzer)
+        preferencesFilesSizer.Add(self.label_8, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesFilesSizer.Add(self.window_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesFilesSizer.Add(self.label_9, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesFilesSizer.Add(self.text_ctrl_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        self.preferencesFilesPane.SetSizer(preferencesFilesSizer)
         self.preferencesNotebook.AddPage(self.preferencesMythTVPane, "MythTV")
         self.preferencesNotebook.AddPage(self.preferencesEncodersPane, "Encoders")
-        self.preferencesNotebook.AddPage(self.preferencesFilenamesPane, "Queue")
-        self.preferencesNotebook.AddPage(self.preferencesNotebook_pane_4, "Files")
+        self.preferencesNotebook.AddPage(self.preferencesQueuePane, "Queue")
+        self.preferencesNotebook.AddPage(self.preferencesFilesPane, "Files")
         preferencesSizer.Add(self.preferencesNotebook, 1, wx.EXPAND, 0)
         preferencesButtonSizer.Add(self.preferencesCancelButton, 0, wx.ALIGN_BOTTOM, 0)
         preferencesButtonSizer.Add(self.preferencesOKButton, 0, wx.ALIGN_BOTTOM, 0)
@@ -800,6 +861,15 @@ class preferencesFrame(wx.Frame):
         self.Layout()
         # end wxGlade
 
+    def onCancelButton(self, event): # wxGlade: preferencesFrame.<event_handler>
+        self.Hide()
+        event.Skip()
+
+    def onOKButton(self, event): # wxGlade: preferencesFrame.<event_handler>
+        # this event is picked up by the mainframe where the actual saving/load of preferences takes place
+        self.Hide()
+        event.Skip()
+        
 # end of class preferencesFrame
 
 
