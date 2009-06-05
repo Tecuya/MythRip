@@ -250,9 +250,11 @@ class mainFrame(wx.Frame):
 
         # load the preferences from the prefs frame
         self.prefs = self.preferencesFrame.getPreferences()
-
+        
         # write em to disk 
         print "saving prefs to disk"
+
+        self.mainFrameStatusbar.PushStatusText('Preferences saved.')
 
         event.Skip()
 
@@ -264,6 +266,8 @@ class mainFrame(wx.Frame):
         self.prefs = {}
 
         print "setting them to prefs frame"
+
+        self.mainFrameStatusbar.PushStatusText('Preferences loaded.')
 
         self.preferencesFrame.setPreferences(self.prefs)
         
