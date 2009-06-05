@@ -20,6 +20,7 @@ import time   # for debugging only so far
 
 
 
+
 class mainFrame(wx.Frame):
     def __init__(self, *args, **kwds):
         
@@ -27,6 +28,7 @@ class mainFrame(wx.Frame):
         toolbarView = wx.NewId()
         toolbarDelete = wx.NewId()
         toolbarPrefs = wx.NewId()
+        toolbarReload = wx.NewId()
         toolbarQuit = wx.NewId()
 
         # begin wxGlade: mainFrame.__init__
@@ -61,6 +63,7 @@ class mainFrame(wx.Frame):
         # Tool Bar
         self.mainFrameToolbar = wx.ToolBar(self, -1)
         self.SetToolBar(self.mainFrameToolbar)
+        self.mainFrameToolbar.AddLabelTool(toolbarReload, "Reload", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/reload.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "", "")
         self.mainFrameToolbar.AddLabelTool(toolbarEncode, "Encode", wx.Bitmap("/usr/share/icons/gnome/32x32/categories/applications-system.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Encode selected recordings(s)", "")
         self.mainFrameToolbar.AddLabelTool(toolbarView, "View", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-media-play-ltr.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "View selected recordings(s)", "")
         self.mainFrameToolbar.AddLabelTool(toolbarDelete, "Delete", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/stock_delete.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Delete selected recordings(s)", "")
@@ -76,6 +79,7 @@ class mainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.onMenuQuit, self.quitMenuItem)
         self.Bind(wx.EVT_MENU, self.onMenuPrefs, self.prefsMenuItem)
         self.Bind(wx.EVT_MENU, self.onMenuQueue, self.queMenuItem)
+        self.Bind(wx.EVT_TOOL, self.onToolbarReload, id=toolbarReload)
         self.Bind(wx.EVT_TOOL, self.onToolbarEncode, id=toolbarEncode)
         self.Bind(wx.EVT_TOOL, self.onToolbarDelete, id=toolbarDelete)
         self.Bind(wx.EVT_TOOL, self.onToolbarPrefs, id=toolbarPrefs)
@@ -85,54 +89,122 @@ class mainFrame(wx.Frame):
         # end wxGlade
 
         ################################################################################
+        # Various non-wxglade GUI setup
 
-        # set up preference dictionary and load the prefs in to it
-        self.prefs = {}
+        # set up our child frames
+        self.encoderQueueFrame = encoderQueueFrame(parent=self)
         self.preferencesFrame = preferencesFrame(parent=self)
-        self.loadPreferences()
-        self.preferencesFrame.setPreferences( self.prefs )
 
-        # establish our MythTV connection using the mythtv python bindings
-        try: 
-            self.mythTV = mythtv.MythTV()
-        except mythtv.MythError, e:
-            print "Failed initializing MythTV environment; %s" % e.message
-        
-        # set up the preferences frame and push our prefs in to it
-
+        # bind "OK" button presses in preferences frame to our own event handler
         self.Bind(wx.EVT_BUTTON, self.onPrefsOK, self.preferencesFrame.preferencesOKButton)
 
-        # set up the encoder queue window
-        self.encoderQueueFrame = encoderQueueFrame(parent=self)
-        
-        # query recordings from the backend
-        rawRecordings = self.mythTV.backendCommand('QUERY_RECORDINGS Play').split(mythtv.BACKEND_SEP)
-        
-        # determine the record length and number of recordings present in the response
-        numberRecordings = int(rawRecordings[0])        
-        recordingLength = (len(rawRecordings) - 1) / numberRecordings
-        
-        # parse the output, stuff the results in to a list of Program objects
-        self.programList = []
-        
-        for recording in range(numberRecordings):            
-            idxStart = ( recording * recordingLength ) + 1    # plus one - offset for the beginning's "record count" record
-            idxStop = ( recording + 1 ) * recordingLength     # stop at the next recording beginning
-            
-            recordingData = rawRecordings[idxStart:idxStop]
-            
-            # print "RECORDING: ",recordingData,"------------------------------------------------------\n\n\n"
-
-            self.programList.append( mythtv.Program( recordingData ) )
-
-        # add recording count to the status bar
-        self.mainFrameStatusbar.PushStatusText('Loaded %d recordings' % len(self.programList))
-        
         # set up the ListCtrl columns
         self.mainFrameListCtrl.InsertColumn(0, "Show")
         self.mainFrameListCtrl.InsertColumn(1, "Episode")
         self.mainFrameListCtrl.InsertColumn(2, "Air Time")
         self.mainFrameListCtrl.InsertColumn(3, "Flags")
+
+        ###################################################################################
+        # preference handling
+
+        # map of options support by the config file and internal prefs
+	self.optionmap = ( { 'short': '-P', 'long': '--mysqlport', 'action': 'store', 'dest': 'mysqlPort', 'default': 3306, 'help': 'MythTV MySQL Port' },
+                           { 'short': '-H', 'long': '--mysqlhost', 'action': 'store', 'dest': 'mysqlHost', 'default': 'localhost', 'help': 'MythTV MySQL Host'},
+                           { 'short': '-u', 'long': '--mysqluser', 'action': 'store', 'dest': 'mysqlUser', 'default': 'localhost', 'help': 'MythTV MySQL User'},
+                           { 'short': '-p', 'long': '--mysqlpass', 'action': 'store', 'dest': 'mysqlPassword', 'default': 'localhost', 'help': 'MythTV MySQL Password'},
+                           { 'short': '-d', 'long': '--mysqldb', 'action': 'store', 'dest': 'mysqlDB', 'default': 'localhost', 'help': 'MythTV MySQL Database Name'} 
+                           
+                           )
+
+        # load preferences from disk
+        self.loadPrefsFromDisk()
+        
+        # load preferences from CLI ; these override disk preferences
+        self.loadPrefsFromCli()
+
+        # push the prefs we've gathered in to the preferences frame
+        self.preferencesFrame.setPreferences( self.prefs )
+        
+        ###############################################################################
+        # make mythtv connection and load data from it
+        
+        # a variable to stuff the program list in to
+        self.programList = []
+
+        # load recordings from myth
+        self.loadRecordingsFromMyth()
+
+        # prepare the right-click context menu entry definitions
+        self.contextMenuEntriesById = {}
+        for item in [ "Preview", "Delete", "Encode" ]:
+            self.contextMenuEntriesById[ wx.NewId() ] = item
+
+    def __set_properties(self):
+        # begin wxGlade: mainFrame.__set_properties
+        self.SetTitle("MythRip - Main")
+        self.SetSize((720, 430))
+        self.mainFrameStatusbar.SetStatusWidths([-1])
+        # statusbar fields
+        mainFrameStatusbar_fields = ["mainFrame_statusbar"]
+        for i in range(len(mainFrameStatusbar_fields)):
+            self.mainFrameStatusbar.SetStatusText(mainFrameStatusbar_fields[i], i)
+        self.mainFrameToolbar.Realize()
+        # end wxGlade
+
+    def __do_layout(self):
+        # begin wxGlade: mainFrame.__do_layout
+        mainFrameSizer = wx.BoxSizer(wx.HORIZONTAL)
+        mainFrameSizer.Add(self.mainFrameListCtrl, 1, wx.EXPAND, 0)
+        self.SetSizer(mainFrameSizer)
+        self.Layout()
+        # end wxGlade
+
+    def loadRecordingsFromMyth(self):
+
+        # delete any listctrl items currently present
+        for i in range(len(self.programList)):
+            self.mainFrameListCtrl.DeleteItem( self.mainFrameListCtrl.FindItemData(0, i) )
+
+        # reset the programList
+        self.programList = []
+
+        # establish our MythTV connection using the mythtv python bindings, push our preferences in to it
+        try: 
+            self.mythTV = mythtv.MythTV(force_db_opts=self.prefs)
+
+            # query recordings from the backend
+            rawRecordings = self.mythTV.backendCommand('QUERY_RECORDINGS Play').split(mythtv.BACKEND_SEP)
+
+        except Exception, e:
+            
+            # it failed?  send the user to the preferences dialog
+            errorDialog = wx.MessageDialog(parent=self, caption="Error connecting to MythTV", message="Error connecting to MythTV:\n%s\nPlease alter your MythTV settings in the Preferences Dialog"%str(e))
+            errorDialog.ShowModal()
+            self.preferencesFrame.Show()
+
+            rawRecordings = []
+            
+
+        if len(rawRecordings):
+            # determine the record length and number of recordings present in the response
+            numberRecordings = int(rawRecordings[0])        
+            recordingLength = (len(rawRecordings) - 1) / numberRecordings
+
+            # parse the output, stuff the results in to a list of Program objects
+
+            for recording in range(numberRecordings):            
+                idxStart = ( recording * recordingLength ) + 1    # plus one - offset for the beginning's "record count" record
+                idxStop = ( recording + 1 ) * recordingLength     # stop at the next recording beginning
+
+                recordingData = rawRecordings[idxStart:idxStop]
+
+                # print "RECORDING: ",recordingData,"------------------------------------------------------\n\n\n"
+
+                self.programList.append( mythtv.Program( recordingData ) )
+
+        # add recording count to the status bar
+        self.mainFrameStatusbar.PushStatusText('Loaded %d recordings' % len(self.programList))
+        
         
         # push in the ListCtrl data
         for i in range(len(self.programList)):
@@ -156,38 +228,13 @@ class mainFrame(wx.Frame):
         self.mainFrameListCtrl.SetColumnWidth(2, wx.LIST_AUTOSIZE)
         self.mainFrameListCtrl.SetColumnWidth(3, wx.LIST_AUTOSIZE)
         
-        # these variables are for preserving the sorting state
+        # these variables are for preserving the listctrl sorting state
         self.lastColClick = 0
         self.sortToggler = 1
 
         # run an initial sort
         self.mainFrameListCtrl.SortItems( self.sortList ) 
         
-        # prepare the right-click context menu entry definitions
-        self.contextMenuEntriesById = {}
-        for item in [ "Preview", "Delete", "Encode" ]:
-            self.contextMenuEntriesById[ wx.NewId() ] = item
-            
-
-    def __set_properties(self):
-        # begin wxGlade: mainFrame.__set_properties
-        self.SetTitle("MythRip - Main")
-        self.SetSize((720, 430))
-        self.mainFrameStatusbar.SetStatusWidths([-1])
-        # statusbar fields
-        mainFrameStatusbar_fields = ["mainFrame_statusbar"]
-        for i in range(len(mainFrameStatusbar_fields)):
-            self.mainFrameStatusbar.SetStatusText(mainFrameStatusbar_fields[i], i)
-        self.mainFrameToolbar.Realize()
-        # end wxGlade
-
-    def __do_layout(self):
-        # begin wxGlade: mainFrame.__do_layout
-        mainFrameSizer = wx.BoxSizer(wx.HORIZONTAL)
-        mainFrameSizer.Add(self.mainFrameListCtrl, 1, wx.EXPAND, 0)
-        self.SetSizer(mainFrameSizer)
-        self.Layout()
-        # end wxGlade
 
     # this is the callback to sort the mainFrameListCtrl used by mainFrameListCtrl.SortItems
     def sortList(self, item1, item2):
@@ -245,32 +292,168 @@ class mainFrame(wx.Frame):
 
         self.mainFrameStatusbar.PushStatusText('Added %d recordings to queue.' % addcount)
             
+
+    def readPrefsFromDisk(self):
+        prefs = {}
+	cfgfile=os.path.expanduser('~')+'/.mythriprc'
+	
+	if not os.access(cfgfile,os.F_OK):
+	    print "mythrip config file not found, generating a default one in ~/.mythriprc for you.."
+	    cfg = file(cfgfile,'w+')
+	    cfg.write("# Automatically generated mythrip config file.\n\n")
+	    for option in self.optionmap:
+		cfg.write('# '+option['help']+"\n"+option['dest']+':'+str(option['default'])+"\n\n")
+	    cfg.seek(0)
+	    cfg.close()
+	    
+	# read config file
+	cfg = file(cfgfile,'r')
+	    
+	lines = cfg.readlines()
+
+	# parse config line by line
+	for line in lines:
+	    if line[0] != '#':
+		delimiterAt = line.find(' ')
+		if delimiterAt != -1:
+		    opt = line[:delimiterAt].strip()
+		    value = line[delimiterAt+1:].rstrip("\n")
+		    
+		    # try to interpret config options
+		    if value.lower() == 'true':
+			setvalue = True
+		    elif value.lower() == 'false':
+			setvalue = False
+		    elif value.isdigit():
+			setvalue = int(value)
+		    else:
+			setvalue = value
+		    
+		    prefs[opt] = setvalue
+
+        return prefs
+
+    # write a dictionary of options to the configuration file
+    def writePrefsToDisk(self):
+        print "writePrefsToDisk"
+
+	cfgFile=os.path.expanduser('~')+'/.mythriprc'
+        
+        cfg = file(cfgFile,'w+')
+        cfg.write("# Automatically generated mythrip config file.\n\n")
+
+        for option in self.optionmap:
+            if self.prefs.has_key( option["dest"] ): # if the option appears in our prefs then save it
+                cfg.write("## %s\n%s %s\n\n" % (option["help"], option["dest"], self.prefs[ option["dest"] ]))
+
+        cfg.close()
+
+    # read CLI optparse opts into the self.prefs, if they were given
+    def loadPrefsFromCli(self):
+	import optparse
+	usage = "%prog [options]"
+	
+        cliparser = optparse.OptionParser(usage=usage)
+	
+	for option in self.optionmap:
+            cliparser.add_option(option['short'],option['long'],action=option['action'],dest=option['dest'],help=option['help'])
+	
+	(options, files) = cliparser.parse_args()
+		
+	for option in self.optionmap:
+            value = getattr(options, option['dest'])
+            if value:
+                print "pref ",option['dest']," loaded with value",value,"from cli"
+                self.prefs[option['dest']] = value
+                
+                
         
     def onPrefsOK(self, event):
 
         # load the preferences from the prefs frame
         self.prefs = self.preferencesFrame.getPreferences()
         
-        # write em to disk 
-        print "saving prefs to disk"
+        self.writePrefsToDisk()
 
         self.mainFrameStatusbar.PushStatusText('Preferences saved.')
 
         event.Skip()
 
-    def loadPreferences(self):
+    def loadPrefsFromDisk(self):
         
-        # load the prefs from disk to self.prefs
-        print "loading prefs from disk"
-        
-        self.prefs = {}
-
-        print "setting them to prefs frame"
-
+        # load the prefs from disk to self.prefs        
+        self.prefs = self.readPrefsFromDisk()
+                
+        # if we did not load mysqlHost from disk, assume we should try and find the myth settings from the myth config files
+        if not self.prefs.has_key("mysqlHost"):
+            print "mysql host wasnt loaded from disk; searching for mysql settings"
+            self.prefs.update( self.findMythMysqlSettings() )
+            
         self.mainFrameStatusbar.PushStatusText('Preferences loaded.')
-
-        self.preferencesFrame.setPreferences(self.prefs)
         
+        print "loadPrefsFromDisk returning : ",self.prefs
+
+            
+    def findMythMysqlSettings(self):
+        # Try to read the mysql.txt file used by MythTV.
+        # Order taken from libs/libmyth/mythcontext.cpp
+        config_files = [
+            '/usr/local/share/mythtv/mysql.txt',
+            '/usr/share/mythtv/mysql.txt',
+            '/usr/local/etc/mythtv/mysql.txt',
+            '/etc/mythtv/mysql.txt',
+            os.path.expanduser('~/.mythtv/mysql.txt'),
+            ]
+        
+        if 'MYTHCONFDIR' in os.environ:
+            config_locations.append('%s/mysql.txt' % os.environ['MYTHCONFDIR'])
+
+        found_config = False
+        for config_file in config_files:
+
+                dbconn_host = None
+                dbconn_name = None
+                dbconn_user = None
+                dbconn_pass = None
+                dbconn_port = None
+
+                if not os.access(config_file, os.R_OK): 
+                        continue
+
+                for line in file(config_file):
+                    
+                    if line[0] != '#' and '=' in line:
+                        equalPos = line.find('=')
+
+                        key = line[0:equalPos]
+                        val = line[equalPos+1:].strip()
+                        
+                        if key == "DBHostName":
+                            dbconn_host = val
+                        elif key == "DBPort":
+                            dbconn_port = val
+                        elif key == "DBName":
+                            dbconn_name = val
+                        elif key == "DBUserName":
+                            dbconn_user = val
+                        elif key == "DBPassword":
+                            dbconn_pass = val
+
+                if dbconn_host != None or dbconn_name != None or dbconn_user != None or dbconn_pass != None:
+                    found_config = True
+                    break
+        
+        # we didn't find a config file, just bail out
+        if not found_config:
+            return {}
+
+        return {"mysqlHost": dbconn_host,
+                "mysqlPort": dbconn_port,
+                "mysqlDB": dbconn_name,
+                "mysqlUser": dbconn_user,
+                "mysqlPassword": dbconn_pass}
+        
+
     ###########################################################################
     # event handler land
 
@@ -340,6 +523,10 @@ class mainFrame(wx.Frame):
 
     def onToolbarQuit(self, event): # wxGlade: mainFrame.<event_handler>
         print "Event handler `onToolbarQuit' not implemented"
+        event.Skip()
+
+    def onToolbarReload(self, event): # wxGlade: mainFrame.<event_handler>
+        self.loadRecordingsFromMyth()
         event.Skip()
 
 # end of class mainFrame
@@ -765,10 +952,6 @@ class preferencesFrame(wx.Frame):
         self.preferencesQueuePane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesEncodersPane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesMythTVPane = wx.Panel(self.preferencesNotebook, -1)
-        self.prefsMasterServerHostLabel = wx.StaticText(self.preferencesMythTVPane, -1, " Master Server Host/IP: ")
-        self.prefsMasterServerHostInput = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
-        self.prefsMasterServerPortLabel = wx.StaticText(self.preferencesMythTVPane, -1, "Master Server Port: ")
-        self.prefsMasterServerPortText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
         self.prefsMysqlHostLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Hostname: ")
         self.prefsMysqlHostText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
         self.prefsMysqlPortLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Port: ")
@@ -811,6 +994,13 @@ class preferencesFrame(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.onOKButton, self.preferencesOKButton)
         # end wxGlade
 
+        # preferences frame variable to prefs value array - straight assignments
+        self.prefMap = {"mysqlHost": self.prefsMysqlHostText,
+                        "mysqlPort": self.prefsMysqlPortText,
+                        "mysqlUser": self.prefsMysqlUserText,
+                        "mysqlPassword": self.prefsMysqlPasswordText,
+                        "mysqlDB": self.prefsMysqlDBNameText}
+
     def __set_properties(self):
         # begin wxGlade: preferencesFrame.__set_properties
         self.SetTitle("MythRip - Preferences")
@@ -829,10 +1019,6 @@ class preferencesFrame(wx.Frame):
         preferencesQueueSIzer = wx.GridSizer(2, 2, 0, 0)
         preferencesEncodersSizer = wx.GridSizer(7, 2, 0, 0)
         preferencesMythTVSizer = wx.GridSizer(7, 2, 0, 0)
-        preferencesMythTVSizer.Add(self.prefsMasterServerHostLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesMythTVSizer.Add(self.prefsMasterServerHostInput, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesMythTVSizer.Add(self.prefsMasterServerPortLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesMythTVSizer.Add(self.prefsMasterServerPortText, 0, wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesMythTVSizer.Add(self.prefsMysqlHostLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesMythTVSizer.Add(self.prefsMysqlHostText, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesMythTVSizer.Add(self.prefsMysqlPortLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
@@ -882,16 +1068,27 @@ class preferencesFrame(wx.Frame):
         self.Layout()
         # end wxGlade
 
+
     # set the preferences window to the prefs defined in the prefs argument
     def setPreferences(self, prefs):
-        print "prefs frame being set with prefs passed from caller"
+        print "prefs frame being set with prefs passed from caller",prefs
+
         self.prefs = prefs
+        
+        for (prefKey,controlVar) in self.prefMap.iteritems():
+            if prefs.has_key( prefKey ):
+                controlVar.SetValue( str(prefs[ prefKey ]) )
+                    
 
     # load the preferences that are currently set in this frame in to a prefs array and return it
     def getPreferences(self):
         print "prefs frame getting preferences from frame and returning them"
+        
         prefs = {}
         
+        for (prefKey,controlVar) in self.prefMap.iteritems():
+            prefs[ prefKey ] = controlVar.GetValue()
+
         return prefs
 
     def onCancelButton(self, event): # wxGlade: preferencesFrame.<event_handler>
@@ -919,3 +1116,4 @@ class mythRipMain(wx.App):
 if __name__ == "__main__":
     mythRip = mythRipMain(0)
     mythRip.MainLoop()
+

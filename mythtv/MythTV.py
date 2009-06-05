@@ -65,11 +65,12 @@ class MythTV:
 	"""
 	A connection to a MythTV backend.
 	"""
-	def __init__(self, conn_type='Monitor'):
+	def __init__(self, conn_type='Monitor', force_db_opts = {}):
 		
 		log.Msg(DEBUG, "Instantiated MythTV object")
 
-		self.db = MythDB(sys.argv[1:])
+		self.db = MythDB(sys.argv[1:], force_db_opts = force_db_opts)
+
 		self.master_host = self.db.getSetting('MasterServerIP')
 		self.master_port = int(self.db.getSetting('MasterServerPort'))
 

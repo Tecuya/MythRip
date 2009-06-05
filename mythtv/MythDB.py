@@ -26,84 +26,97 @@ class MythDB:
 	"""
 	A connection to the mythtv database.
 	"""
-	def __init__(self, args=None):
-		# Setup connection variables
-		dbconn = {
-				'host' : None,
-				'name' : None,
-				'user' : None,
-				'pass' : None
-				}
+	def __init__(self, args=None, force_db_opts={}):
 
-		# Try to read the mysql.txt file used by MythTV.
-		# Order taken from libs/libmyth/mythcontext.cpp
-		config_files = [
-				'/usr/local/share/mythtv/mysql.txt',
-				'/usr/share/mythtv/mysql.txt',
-				'/usr/local/etc/mythtv/mysql.txt',
-				'/etc/mythtv/mysql.txt',
-				os.path.expanduser('~/.mythtv/mysql.txt'),
-				]
+		if force_db_opts.has_key('mysqlHost'):
+			dbconn = { 'host': force_db_opts['mysqlHost'],
+				   'name': force_db_opts['mysqlDB'],
+				   'user': force_db_opts['mysqlUser'],
+				   'port': force_db_opts['mysqlPort'],
+				   'pass': force_db_opts['mysqlPassword'] }
+			found_config = True
+		else:	
+			# Setup connection variables
+			dbconn = {
+					'host' : None,
+					'name' : None,
+					'user' : None,
+					'pass' : None
+					}
 
-		if 'MYTHCONFDIR' in os.environ:
-			config_locations.append('%s/mysql.txt' % os.environ['MYTHCONFDIR'])
+			# Try to read the mysql.txt file used by MythTV.
+			# Order taken from libs/libmyth/mythcontext.cpp
+			config_files = [
+					'/usr/local/share/mythtv/mysql.txt',
+					'/usr/share/mythtv/mysql.txt',
+					'/usr/local/etc/mythtv/mysql.txt',
+					'/etc/mythtv/mysql.txt',
+					os.path.expanduser('~/.mythtv/mysql.txt'),
+					]
 
-		found_config = False
-		for config_file in config_files:
+			if 'MYTHCONFDIR' in os.environ:
+				config_locations.append('%s/mysql.txt' % os.environ['MYTHCONFDIR'])
 
-			dbconn['host'] = None
-			dbconn['name'] = None
-			dbconn['user'] = None
-			dbconn['pass'] = None
-			
-			if not os.access(config_file, os.R_OK): 
-				continue
+			found_config = False
+			for config_file in config_files:
 
-			for line in file(config_file):
-				
-				if line[0] != '#' and '=' in line:
-					equalPos = line.find('=')
-					
-					key = line[0:equalPos]
-					val = line[equalPos+1:].strip()
+				dbconn['host'] = None
+				dbconn['name'] = None
+				dbconn['user'] = None
+				dbconn['pass'] = None
 
-					if key == "DBHostName":
-						dbconn['host'] = val
-					elif key == "DBName":
-						dbconn['name'] = val
-					elif key == "DBUserName":
-						dbconn['user'] = val
-					elif key == "DBPassword":
-						dbconn['pass'] = val
+				if not os.access(config_file, os.R_OK): 
+					continue
 
-			if dbconn['host'] != None or dbconn['name'] != None or dbconn['user'] != None or dbconn['pass'] != None:
-				log.Msg(INFO, 'Using config %s', config_file)
-				found_config = True
-				break
+				for line in file(config_file):
 
-		# Overrides from command line parameters
-		try:
-			opts, args = getopt.getopt(args, '', ['dbhost=', 'user=', 'pass=', 'database='])
-			for o, a in opts:
-				if o == '--dbhost':
-					dbconn['host'] = a
-				if o == '--user':
-					dbconn['user'] = a
-				if o == '--pass':
-					dbconn['pass'] = a
-				if o == '--database':
-					dbconn['name'] = a
-		except:
-			pass
+					if line[0] != '#' and '=' in line:
+						equalPos = line.find('=')
+
+						key = line[0:equalPos]
+						val = line[equalPos+1:].strip()
+
+						if key == "DBHostName":
+							dbconn['host'] = val
+						elif key == "DBName":
+							dbconn['name'] = val
+						elif key == "DBUserName":
+							dbconn['user'] = val
+						elif key == "DBPassword":
+							dbconn['pass'] = val
+
+				if dbconn['host'] != None or dbconn['name'] != None or dbconn['user'] != None or dbconn['pass'] != None:
+					log.Msg(INFO, 'Using config %s', config_file)
+					found_config = True
+					break
+
+			# Overrides from command line parameters
+			try:
+				opts, args = getopt.getopt(args, '', ['dbhost=', 'user=', 'pass=', 'database='])
+				for o, a in opts:
+					if o == '--dbhost':
+						dbconn['host'] = a
+					if o == '--user':
+						dbconn['user'] = a
+					if o == '--pass':
+						dbconn['pass'] = a
+					if o == '--database':
+						dbconn['name'] = a
+			except:
+				pass
 
 		if not dbconn['host'] and not found_config:
 			raise MythError('Unable to find MythTV configuration file')
 
+		if not dbconn['port']:
+			dbconn['port'] = 3306
+
 		try:
-			self.db = MySQLdb.connect(user=dbconn['user'], host=dbconn['host'], passwd=dbconn['pass'], db=dbconn['name'])
-			log.Msg(INFO, 'DB Connection info (host:%s, name:%s, user:%s, pass:%s)', dbconn['host'], dbconn['name'], dbconn['user'], dbconn['pass'])
-		except:
-			raise MythError('Connection failed for \'%s\'@\'%s\' to database %s using password %s' % (dbconn['user'], dbconn['host'], dbconn['name'], dbconn['pass']))
+			self.db = MySQLdb.connect(user=dbconn['user'], host=dbconn['host'], port=int(dbconn['port']), passwd=dbconn['pass'], db=dbconn['name'] )
+			log.Msg(INFO, 'DB Connection info (host:%s, port:%s, name:%s, user:%s, pass:%s)', dbconn['host'], dbconn['port'], dbconn['name'], dbconn['user'], dbconn['pass'])
+		except Exception, e:
+			raise
+			raise MythError('Connection failed for \'%s\'@\'%s\' to database %s using password %s : %s' % (dbconn['user'], dbconn['host'], dbconn['name'], dbconn['pass'], e))
 
 	def getAllSettings(self, hostname=None):
 		"""
