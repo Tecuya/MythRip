@@ -88,7 +88,8 @@ class mainFrame(wx.Frame):
         
         # initialize the encoder queue window
         self.encoderQueueFrame = encoderQueueFrame(parent=self)
-        
+        self.preferencesFrame = preferencesFrame(parent=self)
+
         # establish our MythTV connection using the mythtv python bindings
         try: 
             self.mythTV = mythtv.MythTV()
@@ -296,7 +297,7 @@ class mainFrame(wx.Frame):
         event.Skip()
 
     def onMenuPrefs(self, event): # wxGlade: mainFrame.<event_handler>
-        print "Event handler `onMenuPrefs' not implemented"
+        self.preferencesFrame.Show()
         event.Skip()
 
     def onToolbarPrefs(self, event): # wxGlade: mainFrame.<event_handler>
@@ -726,10 +727,28 @@ class preferencesFrame(wx.Frame):
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
         self.preferencesNotebook = wx.Notebook(self, -1, style=0)
-        self.preferencesMythTVPane = wx.Panel(self.preferencesNotebook, -1)
-        self.preferencesEncodersPane = wx.Panel(self.preferencesNotebook, -1)
-        self.preferencesFilenamesPane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesNotebook_pane_4 = wx.Panel(self.preferencesNotebook, -1)
+        self.preferencesEncodersPane = wx.Panel(self.preferencesNotebook, -1)
+        self.preferencesMythTVPane = wx.Panel(self.preferencesNotebook, -1)
+        self.label_10 = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
+        self.choice_1 = wx.Choice(self.preferencesEncodersPane, -1, choices=[])
+        self.label_11 = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec: ")
+        self.choice_2 = wx.Choice(self.preferencesEncodersPane, -1, choices=[])
+        self.label_12 = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec Options (): ")
+        self.text_ctrl_2 = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.label_13 = wx.StaticText(self.preferencesEncodersPane, -1, "Two-Pass Video: ")
+        self.choice_3 = wx.Choice(self.preferencesEncodersPane, -1, choices=[])
+        self.label_14 = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec: ")
+        self.choice_4 = wx.Choice(self.preferencesEncodersPane, -1, choices=[])
+        self.label_15 = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec Options ():")
+        self.text_ctrl_3 = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.label_16 = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Filter String (-af): ")
+        self.text_ctrl_4 = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.preferencesFilenamesPane = wx.Panel(self.preferencesNotebook, -1)
+        self.label_8 = wx.StaticText(self.preferencesNotebook_pane_4, -1, "Save Encoded Videos In: ")
+        self.window_1 = wx.DirPickerCtrl(self.preferencesNotebook_pane_4, -1)
+        self.label_9 = wx.StaticText(self.preferencesNotebook_pane_4, -1, "File Naming Template: ")
+        self.text_ctrl_1 = wx.TextCtrl(self.preferencesNotebook_pane_4, -1, "")
         self.preferencesCancelButton = wx.Button(self, wx.ID_CANCEL, "")
         self.preferencesOKButton = wx.Button(self, wx.ID_OK, "")
 
@@ -746,14 +765,36 @@ class preferencesFrame(wx.Frame):
         # begin wxGlade: preferencesFrame.__do_layout
         preferencesSizer = wx.BoxSizer(wx.VERTICAL)
         preferencesButtonSizer = wx.BoxSizer(wx.HORIZONTAL)
+        grid_sizer_3 = wx.GridSizer(2, 2, 0, 0)
+        grid_sizer_4 = wx.GridSizer(7, 2, 0, 0)
+        grid_sizer_4.Add(self.label_10, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        grid_sizer_4.Add(self.choice_1, 0, 0, 0)
+        grid_sizer_4.Add(self.label_11, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        grid_sizer_4.Add(self.choice_2, 0, 0, 0)
+        grid_sizer_4.Add(self.label_12, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        grid_sizer_4.Add(self.text_ctrl_2, 0, 0, 0)
+        grid_sizer_4.Add(self.label_13, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        grid_sizer_4.Add(self.choice_3, 0, 0, 0)
+        grid_sizer_4.Add(self.label_14, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        grid_sizer_4.Add(self.choice_4, 0, 0, 0)
+        grid_sizer_4.Add(self.label_15, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        grid_sizer_4.Add(self.text_ctrl_3, 0, 0, 0)
+        grid_sizer_4.Add(self.label_16, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        grid_sizer_4.Add(self.text_ctrl_4, 0, 0, 0)
+        self.preferencesEncodersPane.SetSizer(grid_sizer_4)
+        grid_sizer_3.Add(self.label_8, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        grid_sizer_3.Add(self.window_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        grid_sizer_3.Add(self.label_9, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        grid_sizer_3.Add(self.text_ctrl_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        self.preferencesNotebook_pane_4.SetSizer(grid_sizer_3)
         self.preferencesNotebook.AddPage(self.preferencesMythTVPane, "MythTV")
         self.preferencesNotebook.AddPage(self.preferencesEncodersPane, "Encoders")
         self.preferencesNotebook.AddPage(self.preferencesFilenamesPane, "Queue")
         self.preferencesNotebook.AddPage(self.preferencesNotebook_pane_4, "Files")
         preferencesSizer.Add(self.preferencesNotebook, 1, wx.EXPAND, 0)
-        preferencesButtonSizer.Add(self.preferencesCancelButton, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesButtonSizer.Add(self.preferencesOKButton, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesSizer.Add(preferencesButtonSizer, 4, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesButtonSizer.Add(self.preferencesCancelButton, 0, wx.ALIGN_BOTTOM, 0)
+        preferencesButtonSizer.Add(self.preferencesOKButton, 0, wx.ALIGN_BOTTOM, 0)
+        preferencesSizer.Add(preferencesButtonSizer, 0, wx.ALIGN_CENTER_HORIZONTAL, 0)
         self.SetSizer(preferencesSizer)
         preferencesSizer.Fit(self)
         self.Layout()
