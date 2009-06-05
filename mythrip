@@ -108,12 +108,25 @@ class mainFrame(wx.Frame):
         # preference handling
 
         # map of options support by the config file and internal prefs
-	self.optionmap = ( { 'short': '-P', 'long': '--mysqlport', 'action': 'store', 'dest': 'mysqlPort', 'default': 3306, 'help': 'MythTV MySQL Port' },
-                           { 'short': '-H', 'long': '--mysqlhost', 'action': 'store', 'dest': 'mysqlHost', 'default': 'localhost', 'help': 'MythTV MySQL Host'},
-                           { 'short': '-u', 'long': '--mysqluser', 'action': 'store', 'dest': 'mysqlUser', 'default': 'localhost', 'help': 'MythTV MySQL User'},
-                           { 'short': '-p', 'long': '--mysqlpass', 'action': 'store', 'dest': 'mysqlPassword', 'default': 'localhost', 'help': 'MythTV MySQL Password'},
-                           { 'short': '-d', 'long': '--mysqldb', 'action': 'store', 'dest': 'mysqlDB', 'default': 'localhost', 'help': 'MythTV MySQL Database Name'} 
-                           
+	self.optionMap = ( { 'short': '-P', 'long': '--mysqlport', 'action': 'store', 'dest': 'mysqlPort', 'default': 3306, 'help': 'MythTV MySQL Port', 'autoDiscover': True },
+                           { 'short': '-H', 'long': '--mysqlhost', 'action': 'store', 'dest': 'mysqlHost', 'default': 'localhost', 'help': 'MythTV MySQL Host', 'autoDiscover': True},
+                           { 'short': '-u', 'long': '--mysqluser', 'action': 'store', 'dest': 'mysqlUser', 'default': 'localhost', 'help': 'MythTV MySQL User', 'autoDiscover': True},
+                           { 'short': '-p', 'long': '--mysqlpass', 'action': 'store', 'dest': 'mysqlPassword', 'default': 'localhost', 'help': 'MythTV MySQL Password', 'autoDiscover': True},
+                           { 'short': '-d', 'long': '--mysqldb', 'action': 'store', 'dest': 'mysqlDB', 'default': 'localhost', 'help': 'MythTV MySQL Database Name', 'autoDiscover': True},
+                           { 'short': '-c', 'long': '--container', 'action': 'store', 'dest': 'containerFormat', 'default': '0', 'help' : 'Container format' },
+                           { 'short': '-v', 'long': '--videocodec', 'action': 'store', 'dest': 'videoCodec', 'default': '0', 'help' : 'Video Codec Choice Index' },
+                           { 'short': '-V', 'long': '--videocodecopts', 'action': 'store', 'dest': 'videoCodecOptions', 'default': '', 'help' : 'Video Codec Option String' },
+                           { 'short': '-f', 'long': '--videofilter', 'action': 'store', 'dest': 'videoFilter', 'default': 'pp=fd', 'help': 'Video Filter String' },
+                           { 'short': '-2', 'long': '--twopass', 'action': 'store', 'dest': 'twoPassVideo', 'default': '0', 'help' : 'Two Pass Video Choice Index' },
+                           { 'short': '-a', 'long': '--audiocodec', 'action': 'store', 'dest': 'audioCodec', 'default': '0', 'help' : 'Audio Codec Choice Index' },
+                           { 'short': '-A', 'long': '--audiocodecopts', 'action': 'store', 'dest': 'audioCodecOptions', 'default': '', 'help' : 'Audio Codec Option String' },
+                           { 'short': '-F', 'long': '--audiofilter', 'action': 'store', 'dest': 'audioFilter', 'default': '', 'help' : 'Audio Filter String' },
+                           { 'short': '-t', 'long': '--threadcount', 'action': 'store', 'dest': 'threadCount', 'default': '2', 'help' : 'Max Simultaneous Encoding Jobs' },
+                           { 'short': '-r', 'long': '--removecompleted', 'action': 'store', 'dest': 'removeCompleted', 'default': '0', 'help' : 'Remove Completed Job Choice Index' },                       
+                           { 'short': '-s', 'long': '--savepath', 'action': 'store', 'dest': 'savePath', 'default': os.path.expanduser('~/Desktop'), 'help' : 'Save Encodings to Path' }, 
+                           { 'short': '-T', 'long': '--filetemplate', 'action': 'store', 'dest': 'fileTemplate', 'default': '%s - %t.%x', 'help' : 'Output File Naming Template' }
+                           # use this to add new rows easily:
+                           # { 'short': '-', 'long': '--', 'action': '', 'dest': '', 'default': '', 'help' : '' }                                                      
                            )
 
         # load preferences from disk
@@ -298,18 +311,22 @@ class mainFrame(wx.Frame):
 	cfgfile=os.path.expanduser('~')+'/.mythriprc'
 	
 	if not os.access(cfgfile,os.F_OK):
-	    print "mythrip config file not found, generating a default one in ~/.mythriprc for you.."
+	    print "mythrip config file not found, generating a default one in %s for you.." % cfgfile
 	    cfg = file(cfgfile,'w+')
 	    cfg.write("# Automatically generated mythrip config file.\n\n")
-	    for option in self.optionmap:
-		cfg.write('# '+option['help']+"\n"+option['dest']+':'+str(option['default'])+"\n\n")
-	    cfg.seek(0)
+	    for option in self.optionMap:
+
+                # we avoid writing the mysql options because they are automatically discovered by the self.findMythMysqlSettings
+                if option.has_key('autoDiscover'):
+                    optionPrefix = "# "
+                else:
+                    optionPrefix = ""
+                
+                cfg.write("# %s\n%s%s %s\n\n" % (option['help'], optionPrefix, option['dest'], option['default']))
 	    cfg.close()
 	    
-	# read config file
-	cfg = file(cfgfile,'r')
-	    
-	lines = cfg.readlines()
+        # read config file	    
+	lines = file(cfgfile,'r').readlines()
 
 	# parse config line by line
 	for line in lines:
@@ -342,7 +359,7 @@ class mainFrame(wx.Frame):
         cfg = file(cfgFile,'w+')
         cfg.write("# Automatically generated mythrip config file.\n\n")
 
-        for option in self.optionmap:
+        for option in self.optionMap:
             if self.prefs.has_key( option["dest"] ): # if the option appears in our prefs then save it
                 cfg.write("## %s\n%s %s\n\n" % (option["help"], option["dest"], self.prefs[ option["dest"] ]))
 
@@ -355,12 +372,12 @@ class mainFrame(wx.Frame):
 	
         cliparser = optparse.OptionParser(usage=usage)
 	
-	for option in self.optionmap:
+	for option in self.optionMap:
             cliparser.add_option(option['short'],option['long'],action=option['action'],dest=option['dest'],help=option['help'])
 	
 	(options, files) = cliparser.parse_args()
 		
-	for option in self.optionmap:
+	for option in self.optionMap:
             value = getattr(options, option['dest'])
             if value:
                 print "pref ",option['dest']," loaded with value",value,"from cli"
@@ -952,38 +969,40 @@ class preferencesFrame(wx.Frame):
         self.preferencesQueuePane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesEncodersPane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesMythTVPane = wx.Panel(self.preferencesNotebook, -1)
-        self.prefsMysqlHostLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Hostname: ")
-        self.prefsMysqlHostText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
-        self.prefsMysqlPortLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Port: ")
-        self.prefsMysqlPortText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
-        self.prefsMysqlUserLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL User: ")
-        self.prefsMysqlUserText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
-        self.prefsMysqlPasswordLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Password: ")
-        self.prefsMysqlPasswordText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
-        self.prefsMysqlDBNameLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Database Name: ")
-        self.prefsMysqlDBNameText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
-        self.prefsContainerFormatLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
-        self.prefsContainerFormatChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["avi", "mkv"])
-        self.prefsVideoCodecLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec: ")
-        self.prefsVideoCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["xvid", "x264"])
-        self.prefsVideoCodecOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec Options (): ")
-        self.prefsVideoCodecOptionsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
-        self.prefsTwoPassVideoLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Two-Pass Video: ")
-        self.prefsTwoPassVideoChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["Yes", "No"])
-        self.prefsAudioCodecLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec: ")
-        self.prefsAudioCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["passthrough", "mp3lame", "ogg", "whatever"])
-        self.prefsAudioCodecOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec Options ():")
-        self.prefsAudioCodecOptionsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
-        self.prefsAudioFilterLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Filter String (-af): ")
-        self.prefsAudioFilterText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
-        self.label_1 = wx.StaticText(self.preferencesQueuePane, -1, "Thread count: ")
-        self.spin_ctrl_1 = wx.SpinCtrl(self.preferencesQueuePane, -1, "", min=0, max=100)
-        self.label_2 = wx.StaticText(self.preferencesQueuePane, -1, "Remove Completed Items: ")
-        self.choice_6 = wx.Choice(self.preferencesQueuePane, -1, choices=["Yes", "No"])
-        self.label_8 = wx.StaticText(self.preferencesFilesPane, -1, "Save Encoded Videos In: ")
-        self.window_1 = wx.DirPickerCtrl(self.preferencesFilesPane, -1)
-        self.label_9 = wx.StaticText(self.preferencesFilesPane, -1, "File Naming Template: ")
-        self.text_ctrl_1 = wx.TextCtrl(self.preferencesFilesPane, -1, "")
+        self.mysqlHostLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Hostname: ")
+        self.mysqlHostText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.mysqlPortLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Port: ")
+        self.mysqlPortText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.mysqlUserLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL User: ")
+        self.mysqlUserText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.mysqlPasswordLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Password: ")
+        self.mysqlPasswordText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.mysqlDBNameLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Database Name: ")
+        self.mysqlDBNameText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.containerFormatLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
+        self.containerFormatChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["avi", "mkv"])
+        self.videoCodecLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec: ")
+        self.videoCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["xvid", "x264"])
+        self.twoPassVideoLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Two-Pass Video: ")
+        self.twoPassVideoChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["Yes", "No"])
+        self.videoCodecOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec Options (): ")
+        self.videoCodecOptionsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.videoFilterStringLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Filter String (-af): ")
+        self.videoFilterStringText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.audioCodecLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec: ")
+        self.audioCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["passthrough", "mp3lame", "ogg", "whatever"])
+        self.audioCodecOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec Options ():")
+        self.audioCodecOptionsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.audioFilterLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Filter String (-af): ")
+        self.audioFilterText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.threadCountLabel = wx.StaticText(self.preferencesQueuePane, -1, "Max Simultaneous Jobs: ")
+        self.threadCountSpin = wx.SpinCtrl(self.preferencesQueuePane, -1, "", min=0, max=100)
+        self.removeCompletedLabel = wx.StaticText(self.preferencesQueuePane, -1, "Remove Completed Jobs: ")
+        self.removeCompletedChoice = wx.Choice(self.preferencesQueuePane, -1, choices=["Yes", "No"])
+        self.savePathLabel = wx.StaticText(self.preferencesFilesPane, -1, "Save Encoded Videos In: ")
+        self.savePathPicker = wx.DirPickerCtrl(self.preferencesFilesPane, -1)
+        self.fileTemplateLabel = wx.StaticText(self.preferencesFilesPane, -1, "File Naming Template: ")
+        self.fileTemplateText = wx.TextCtrl(self.preferencesFilesPane, -1, "")
         self.preferencesCancelButton = wx.Button(self, wx.ID_CANCEL, "")
         self.preferencesOKButton = wx.Button(self, wx.ID_OK, "")
 
@@ -993,68 +1012,88 @@ class preferencesFrame(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.onCancelButton, self.preferencesCancelButton)
         self.Bind(wx.EVT_BUTTON, self.onOKButton, self.preferencesOKButton)
         # end wxGlade
-
-        # preferences frame variable to prefs value array - straight assignments
-        self.prefMap = {"mysqlHost": self.prefsMysqlHostText,
-                        "mysqlPort": self.prefsMysqlPortText,
-                        "mysqlUser": self.prefsMysqlUserText,
-                        "mysqlPassword": self.prefsMysqlPasswordText,
-                        "mysqlDB": self.prefsMysqlDBNameText}
+        
+        # a map of which 'prefs' keys map to which controls in the preferences dialog, and the control type
+        # we use this for getting/setting values in the preferences dialog
+        self.prefMap = {'mysqlHost': ['TextCtrl', self.mysqlHostText],
+                        'mysqlPort': ['TextCtrl', self.mysqlPortText],
+                        'mysqlUser': ['TextCtrl', self.mysqlUserText],
+                        'mysqlPassword': ['TextCtrl', self.mysqlPasswordText],
+                        'mysqlDB': ['TextCtrl', self.mysqlDBNameText],
+                        'containerFormat': ['Choice', self.containerFormatChoice],
+                        'videoCodec': ['Choice', self.videoCodecChoice],
+                        'videoCodecOptions': ['TextCtrl', self.videoCodecOptionsText],
+                        'videoFilter': ['TextCtrl', self.videoFilterStringText],
+                        'twoPassVideo': ['Choice', self.twoPassVideoChoice],
+                        'audioCodec': ['Choice', self.audioCodecChoice],
+                        'audioCodecOptions': ['TextCtrl', self.audioCodecOptionsText],
+                        'audioFilter': ['TextCtrl', self.audioFilterText],
+                        'threadCount': ['Spin', self.threadCountSpin],
+                        'removeCompleted': ['Choice', self.removeCompletedChoice],
+                        'savePath': ['DirPicker', self.savePathPicker],
+                        'fileTemplate': ['TextCtrl', self.fileTemplateText]                        
+                        }
 
     def __set_properties(self):
         # begin wxGlade: preferencesFrame.__set_properties
         self.SetTitle("MythRip - Preferences")
-        self.prefsContainerFormatChoice.SetSelection(0)
-        self.prefsVideoCodecChoice.SetSelection(0)
-        self.prefsTwoPassVideoChoice.SetSelection(0)
-        self.prefsAudioCodecChoice.SetSelection(0)
-        self.choice_6.SetSelection(0)
+        self.containerFormatChoice.SetSelection(0)
+        self.videoCodecChoice.SetSelection(0)
+        self.twoPassVideoChoice.SetSelection(0)
+        self.audioCodecChoice.SetSelection(0)
+        self.removeCompletedChoice.SetSelection(0)
         # end wxGlade
 
     def __do_layout(self):
         # begin wxGlade: preferencesFrame.__do_layout
         preferencesSizer = wx.BoxSizer(wx.VERTICAL)
         preferencesButtonSizer = wx.BoxSizer(wx.HORIZONTAL)
-        preferencesFilesSizer = wx.GridSizer(2, 2, 0, 0)
-        preferencesQueueSIzer = wx.GridSizer(2, 2, 0, 0)
-        preferencesEncodersSizer = wx.GridSizer(7, 2, 0, 0)
-        preferencesMythTVSizer = wx.GridSizer(7, 2, 0, 0)
-        preferencesMythTVSizer.Add(self.prefsMysqlHostLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesMythTVSizer.Add(self.prefsMysqlHostText, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesMythTVSizer.Add(self.prefsMysqlPortLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesMythTVSizer.Add(self.prefsMysqlPortText, 0, wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesMythTVSizer.Add(self.prefsMysqlUserLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesMythTVSizer.Add(self.prefsMysqlUserText, 0, wx.EXPAND, 0)
-        preferencesMythTVSizer.Add(self.prefsMysqlPasswordLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesMythTVSizer.Add(self.prefsMysqlPasswordText, 0, wx.EXPAND, 0)
-        preferencesMythTVSizer.Add(self.prefsMysqlDBNameLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesMythTVSizer.Add(self.prefsMysqlDBNameText, 0, wx.EXPAND, 0)
+        preferencesFilesSizer = wx.FlexGridSizer(6, 2, 0, 0)
+        preferencesQueueSIzer = wx.FlexGridSizer(2, 2, 0, 0)
+        preferencesEncodersSizer = wx.FlexGridSizer(7, 2, 0, 0)
+        preferencesMythTVSizer = wx.FlexGridSizer(9, 2, 0, 0)
+        preferencesMythTVSizer.Add(self.mysqlHostLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.mysqlHostText, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.mysqlPortLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.mysqlPortText, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.mysqlUserLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.mysqlUserText, 0, wx.EXPAND, 0)
+        preferencesMythTVSizer.Add(self.mysqlPasswordLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.mysqlPasswordText, 0, wx.EXPAND, 0)
+        preferencesMythTVSizer.Add(self.mysqlDBNameLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.mysqlDBNameText, 0, wx.EXPAND, 0)
         self.preferencesMythTVPane.SetSizer(preferencesMythTVSizer)
-        preferencesEncodersSizer.Add(self.prefsContainerFormatLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesEncodersSizer.Add(self.prefsContainerFormatChoice, 0, 0, 0)
-        preferencesEncodersSizer.Add(self.prefsVideoCodecLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesEncodersSizer.Add(self.prefsVideoCodecChoice, 0, 0, 0)
-        preferencesEncodersSizer.Add(self.prefsVideoCodecOptionsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesEncodersSizer.Add(self.prefsVideoCodecOptionsText, 0, wx.EXPAND, 0)
-        preferencesEncodersSizer.Add(self.prefsTwoPassVideoLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesEncodersSizer.Add(self.prefsTwoPassVideoChoice, 0, 0, 0)
-        preferencesEncodersSizer.Add(self.prefsAudioCodecLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesEncodersSizer.Add(self.prefsAudioCodecChoice, 0, 0, 0)
-        preferencesEncodersSizer.Add(self.prefsAudioCodecOptionsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesEncodersSizer.Add(self.prefsAudioCodecOptionsText, 0, wx.EXPAND, 0)
-        preferencesEncodersSizer.Add(self.prefsAudioFilterLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesEncodersSizer.Add(self.prefsAudioFilterText, 0, wx.EXPAND, 0)
+        preferencesMythTVSizer.AddGrowableCol(1)
+        preferencesEncodersSizer.Add(self.containerFormatLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.containerFormatChoice, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.videoCodecLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.videoCodecChoice, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.twoPassVideoLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.twoPassVideoChoice, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.videoCodecOptionsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.videoCodecOptionsText, 0, wx.EXPAND, 0)
+        preferencesEncodersSizer.Add(self.videoFilterStringLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.videoFilterStringText, 0, wx.EXPAND, 0)
+        preferencesEncodersSizer.Add(self.audioCodecLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.audioCodecChoice, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.audioCodecOptionsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.audioCodecOptionsText, 0, wx.EXPAND, 0)
+        preferencesEncodersSizer.Add(self.audioFilterLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.audioFilterText, 0, wx.EXPAND, 0)
         self.preferencesEncodersPane.SetSizer(preferencesEncodersSizer)
-        preferencesQueueSIzer.Add(self.label_1, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesQueueSIzer.Add(self.spin_ctrl_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesQueueSIzer.Add(self.label_2, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesQueueSIzer.Add(self.choice_6, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.AddGrowableCol(1)
+        preferencesQueueSIzer.Add(self.threadCountLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesQueueSIzer.Add(self.threadCountSpin, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesQueueSIzer.Add(self.removeCompletedLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesQueueSIzer.Add(self.removeCompletedChoice, 0, wx.ALIGN_CENTER_VERTICAL, 0)
         self.preferencesQueuePane.SetSizer(preferencesQueueSIzer)
-        preferencesFilesSizer.Add(self.label_8, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesFilesSizer.Add(self.window_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesFilesSizer.Add(self.label_9, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesFilesSizer.Add(self.text_ctrl_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesQueueSIzer.AddGrowableCol(1)
+        preferencesFilesSizer.Add(self.savePathLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesFilesSizer.Add(self.savePathPicker, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesFilesSizer.Add(self.fileTemplateLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesFilesSizer.Add(self.fileTemplateText, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
         self.preferencesFilesPane.SetSizer(preferencesFilesSizer)
+        preferencesFilesSizer.AddGrowableCol(1)
         self.preferencesNotebook.AddPage(self.preferencesMythTVPane, "MythTV")
         self.preferencesNotebook.AddPage(self.preferencesEncodersPane, "Encoders")
         self.preferencesNotebook.AddPage(self.preferencesQueuePane, "Queue")
@@ -1075,9 +1114,20 @@ class preferencesFrame(wx.Frame):
 
         self.prefs = prefs
         
-        for (prefKey,controlVar) in self.prefMap.iteritems():
+        for (prefKey,(controlType,controlVar)) in self.prefMap.iteritems():
+
             if prefs.has_key( prefKey ):
-                controlVar.SetValue( str(prefs[ prefKey ]) )
+                
+                # set the value according to controlType
+                
+                if controlType == "TextCtrl": 
+                    controlVar.SetValue( str(prefs[ prefKey ]) )
+                elif controlType == "Spin":
+                    controlVar.SetValue( int(prefs[ prefKey ]) )
+                elif controlType == "Choice":
+                    controlVar.SetSelection( int(prefs[ prefKey ]) )
+                elif controlType == "DirPicker":
+                    controlVar.SetPath( str(prefs[ prefKey ]) )
                     
 
     # load the preferences that are currently set in this frame in to a prefs array and return it
@@ -1086,8 +1136,18 @@ class preferencesFrame(wx.Frame):
         
         prefs = {}
         
-        for (prefKey,controlVar) in self.prefMap.iteritems():
-            prefs[ prefKey ] = controlVar.GetValue()
+        for (prefKey,(controlType,controlVar)) in self.prefMap.iteritems():
+
+            # retrieve the value according to controlType
+            if controlType in ["TextCtrl","Spin"]: # these types all share GetValue()
+                value = controlVar.GetValue()
+            elif controlType == "Choice":
+                value = controlVar.GetCurrentSelection()
+            elif controlType == "DirPicker":
+                value = controlVar.GetPath()
+
+            # stuff it in to the prefs array
+            prefs[ prefKey ] = value
 
         return prefs
 
