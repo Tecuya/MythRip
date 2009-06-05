@@ -86,15 +86,21 @@ class mainFrame(wx.Frame):
 
         ################################################################################
 
+        # set up preference dictionary and load the prefs in to it
+        self.prefs = {}
+        self.preferencesFrame = preferencesFrame(parent=self)
+        self.loadPreferences()
+        self.preferencesFrame.setPreferences( self.prefs )
+
         # establish our MythTV connection using the mythtv python bindings
         try: 
             self.mythTV = mythtv.MythTV()
         except mythtv.MythError, e:
             print "Failed initializing MythTV environment; %s" % e.message
         
-        # set up the preferences frame 
-        self.preferencesFrame = preferencesFrame(parent=self,self.prefs)
-        self.Bind(wx.EVT_BUTTON, self.savePreferences, self.preferencesFrame.preferencesOKButton)
+        # set up the preferences frame and push our prefs in to it
+
+        self.Bind(wx.EVT_BUTTON, self.onPrefsOK, self.preferencesFrame.preferencesOKButton)
 
         # set up the encoder queue window
         self.encoderQueueFrame = encoderQueueFrame(parent=self)
@@ -115,7 +121,7 @@ class mainFrame(wx.Frame):
             
             recordingData = rawRecordings[idxStart:idxStop]
             
-            print "RECORDING: ",recordingData,"------------------------------------------------------\n\n\n"
+            # print "RECORDING: ",recordingData,"------------------------------------------------------\n\n\n"
 
             self.programList.append( mythtv.Program( recordingData ) )
 
@@ -162,9 +168,6 @@ class mainFrame(wx.Frame):
         for item in [ "Preview", "Delete", "Encode" ]:
             self.contextMenuEntriesById[ wx.NewId() ] = item
             
-        # set up preference dictionary and load the prefs in to it
-        self.prefs = {}
-        self.loadPreferences()
 
     def __set_properties(self):
         # begin wxGlade: mainFrame.__set_properties
@@ -243,12 +246,26 @@ class mainFrame(wx.Frame):
         self.mainFrameStatusbar.PushStatusText('Added %d recordings to queue.' % addcount)
             
         
-    def savePreferences(self, event):
-        print "saving prefs"
+    def onPrefsOK(self, event):
+
+        # load the preferences from the prefs frame
+        self.prefs = self.preferencesFrame.getPreferences()
+
+        # write em to disk 
+        print "saving prefs to disk"
+
         event.Skip()
 
     def loadPreferences(self):
-        print "loading prefs"
+        
+        # load the prefs from disk to self.prefs
+        print "loading prefs from disk"
+        
+        self.prefs = {}
+
+        print "setting them to prefs frame"
+
+        self.preferencesFrame.setPreferences(self.prefs)
         
     ###########################################################################
     # event handler land
@@ -860,6 +877,18 @@ class preferencesFrame(wx.Frame):
         preferencesSizer.Fit(self)
         self.Layout()
         # end wxGlade
+
+    # set the preferences window to the prefs defined in the prefs argument
+    def setPreferences(self, prefs):
+        print "prefs frame being set with prefs passed from caller"
+        self.prefs = prefs
+
+    # load the preferences that are currently set in this frame in to a prefs array and return it
+    def getPreferences(self):
+        print "prefs frame getting preferences from frame and returning them"
+        prefs = {}
+        
+        return prefs
 
     def onCancelButton(self, event): # wxGlade: preferencesFrame.<event_handler>
         self.Hide()

@@ -284,7 +284,6 @@ class Program:
 		self.filename = data[8] #pathname
 		self.fs_high = data[9]
 		self.fs_low = data[10]
-		print "starttime orig format",data[11]
 		self.starttime = datetime.fromtimestamp(int(data[11])) # startts
 		self.endtime = datetime.fromtimestamp(int(data[12])) #endts
 		self.duplicate = int(data[13])
