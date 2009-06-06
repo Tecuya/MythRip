@@ -110,7 +110,8 @@ class mainFrame(wx.Frame):
         # preference handling
 
         # map of options support by the config file and internal prefs
-	self.optionMap = ( { 'short': '-P', 'long': '--mysqlport', 'action': 'store', 'dest': 'mysqlPort', 'default': 3306, 'help': 'MythTV MySQL Port', 'autoDiscover': True },
+
+        self.optionMap = ( { 'short': '-P', 'long': '--mysqlport', 'action': 'store', 'dest': 'mysqlPort', 'default': 3306, 'help': 'MythTV MySQL Port', 'autoDiscover': True },
                            { 'short': '-H', 'long': '--mysqlhost', 'action': 'store', 'dest': 'mysqlHost', 'default': 'localhost', 'help': 'MythTV MySQL Host', 'autoDiscover': True},
                            { 'short': '-u', 'long': '--mysqluser', 'action': 'store', 'dest': 'mysqlUser', 'default': 'localhost', 'help': 'MythTV MySQL User', 'autoDiscover': True},
                            { 'short': '-p', 'long': '--mysqlpass', 'action': 'store', 'dest': 'mysqlPassword', 'default': 'localhost', 'help': 'MythTV MySQL Password', 'autoDiscover': True},
@@ -128,10 +129,7 @@ class mainFrame(wx.Frame):
                            { 'short': '-r', 'long': '--removecompleted', 'action': 'store', 'dest': 'removeCompleted', 'default': '0', 'help' : 'Remove Completed Job Choice Index' },                       
                            { 'short': '-s', 'long': '--savepath', 'action': 'store', 'dest': 'savePath', 'default': os.path.expanduser('~/Desktop'), 'help' : 'Save Encodings to Path' }, 
                            { 'short': '-x', 'long': '--filetemplate', 'action': 'store', 'dest': 'fileTemplate', 'default': '%s - %t.%x', 'help' : 'Output File Naming Template' }
-                           # use this to add new rows easily:
-                           # { 'short': '-', 'long': '--', 'action': '', 'dest': '', 'default': '', 'help' : '' }                                                      
                            )
-
         # load preferences from disk
         self.loadPrefsFromDisk()
         
@@ -253,7 +251,7 @@ class mainFrame(wx.Frame):
 
     # this is the callback to sort the mainFrameListCtrl used by mainFrameListCtrl.SortItems
     def sortList(self, item1, item2):
-                        
+        
         progLeft = self.programList[ item1 ]
         progRight = self.programList[ item2 ]
         
@@ -297,7 +295,7 @@ class mainFrame(wx.Frame):
             item = self.mainFrameListCtrl.GetNextSelected(item)
         
         return returnList
-        
+    
     def addRecordingsToQueue(self):
         
         addcount = 0
@@ -306,7 +304,7 @@ class mainFrame(wx.Frame):
             addcount += 1
 
         self.mainFrameStatusbar.PushStatusText('Added %d recordings to queue.' % addcount)
-            
+        
 
     def readPrefsFromDisk(self):
         prefs = {}
@@ -378,7 +376,7 @@ class mainFrame(wx.Frame):
             cliparser.add_option(option['short'],option['long'],action=option['action'],dest=option['dest'],help=option['help'])
 	
 	(options, files) = cliparser.parse_args()
-		
+        
 	for option in self.optionMap:
             value = getattr(options, option['dest'])
             if value:
@@ -407,7 +405,7 @@ class mainFrame(wx.Frame):
         
         # load the prefs from disk to self.prefs        
         self.prefs = self.readPrefsFromDisk()
-                
+        
         # if we did not load mysqlHost from disk, assume we should try and find the myth settings from the myth config files
         if not self.prefs.has_key("mysqlHost"):
             print "mysql host wasnt loaded from disk; searching for mysql settings"
@@ -417,7 +415,7 @@ class mainFrame(wx.Frame):
         
         print "loadPrefsFromDisk returning : ",self.prefs
 
-            
+        
     def findMythMysqlSettings(self):
         # Try to read the mysql.txt file used by MythTV.
         # Order taken from libs/libmyth/mythcontext.cpp
@@ -435,33 +433,33 @@ class mainFrame(wx.Frame):
         found_config = False
         for config_file in config_files:
 
-                dbconn_host = None
-                dbconn_name = None
-                dbconn_user = None
-                dbconn_pass = None
-                dbconn_port = None
+            dbconn_host = None
+            dbconn_name = None
+            dbconn_user = None
+            dbconn_pass = None
+            dbconn_port = None
 
-                if not os.access(config_file, os.R_OK): 
-                        continue
+            if not os.access(config_file, os.R_OK): 
+                continue
 
-                for line in file(config_file):
+            for line in file(config_file):
+                
+                if line[0] != '#' and '=' in line:
+                    equalPos = line.find('=')
+
+                    key = line[0:equalPos]
+                    val = line[equalPos+1:].strip()
                     
-                    if line[0] != '#' and '=' in line:
-                        equalPos = line.find('=')
-
-                        key = line[0:equalPos]
-                        val = line[equalPos+1:].strip()
-                        
-                        if key == "DBHostName":
-                            dbconn_host = val
-                        elif key == "DBPort":
-                            dbconn_port = val
-                        elif key == "DBName":
-                            dbconn_name = val
-                        elif key == "DBUserName":
-                            dbconn_user = val
-                        elif key == "DBPassword":
-                            dbconn_pass = val
+                    if key == "DBHostName":
+                        dbconn_host = val
+                    elif key == "DBPort":
+                        dbconn_port = val
+                    elif key == "DBName":
+                        dbconn_name = val
+                    elif key == "DBUserName":
+                        dbconn_user = val
+                    elif key == "DBPassword":
+                        dbconn_pass = val
 
                 if dbconn_host != None or dbconn_name != None or dbconn_user != None or dbconn_pass != None:
                     found_config = True
@@ -476,7 +474,7 @@ class mainFrame(wx.Frame):
                 "mysqlDB": dbconn_name,
                 "mysqlUser": dbconn_user,
                 "mysqlPassword": dbconn_pass}
-        
+    
 
     def showErrorDialog(self,title,message):
         errorDialog = wx.MessageDialog(parent=self, caption=title, message=message)
@@ -714,7 +712,7 @@ class encoderQueueFrame(wx.Frame):
         # create the thread.  
         self.threads[threadID] = encoderThread(program, threadID, self)
         self.threads[threadID].start()
-                
+        
         # determine the number of items in the control and add in the next available slot
         newListIndex = self.encoderQueueListCtrl.GetItemCount()
 
@@ -727,7 +725,7 @@ class encoderQueueFrame(wx.Frame):
 
         # keep the table clean with some column resizing
         self.resizeEncoderQueueListCtrl()
-                
+        
     def getSelectedEncoders(self):
         
         # iterate through items in the list control, reconcile them to program objects, form a list, return it
@@ -817,16 +815,16 @@ EVT_ENCODER_ID = wx.NewId()
 
 # define a macro for connecting event handlers to the encoder events
 def EVT_ENCODER(theWin, theFunc):
-   theWin.Connect(-1, -1, EVT_ENCODER_ID, theFunc)
+    theWin.Connect(-1, -1, EVT_ENCODER_ID, theFunc)
 
 # a simple event to throw out of the encoder
 class encoderEvent(wx.PyEvent):
-   def __init__(self, threadID, threadState, listMessage):
-       wx.PyEvent.__init__(self)
-       self.SetEventType(EVT_ENCODER_ID)
-       self.threadID = threadID
-       self.threadState = threadState
-       self.listMessage = listMessage
+    def __init__(self, threadID, threadState, listMessage):
+        wx.PyEvent.__init__(self)
+        self.SetEventType(EVT_ENCODER_ID)
+        self.threadID = threadID
+        self.threadState = threadState
+        self.listMessage = listMessage
 
 # the encoder thread itself
 class encoderThread(threading.Thread):
@@ -850,12 +848,16 @@ class encoderThread(threading.Thread):
         self.currentFPS = 0
         self.maxFrame = 0
         
+        # boolean describing if two-pass is enabled ; 0 is yes
+        self.twoPass = (self.notifyWindow.prefs["twoPassVideo"] == 0)
+
         # load parent constructor
         threading.Thread.__init__(self)
     
         
     def run(self):
-                
+
+        
         print "Thread ID %d : %s" % (self.threadID, self.program)
         
         self.startMythtranscode()
@@ -880,9 +882,8 @@ class encoderThread(threading.Thread):
 
         
 
-        twoPass = (self.notifyWindow.prefs["twoPassVideo"] == 0)
-        # 0 is yes...
-        if twoPass:
+        
+        if self.twoPass:
             mencCount = 2
         else:
             mencCount = 1
@@ -896,7 +897,7 @@ class encoderThread(threading.Thread):
             if self.currentPass != 1:
                 self.startMythtranscode()
 
-            mencoderCmd = self.buildMencoderCmd( twoPass=twoPass, passNumber=self.currentPass )
+            mencoderCmd = self.buildMencoderCmd()
             print mencoderCmd
 
             self.stdoutSockMenc, stdoutChildSockMenc = socket.socketpair() 
@@ -936,7 +937,7 @@ class encoderThread(threading.Thread):
                             print "all subprocesses dead"
                             break
 
-                        if sec > 5:
+                        if sec > 3:
 
                             # read again
                             mythTranscodeRunning = (self.mythTranscodeProcess.poll() == None)
@@ -945,7 +946,7 @@ class encoderThread(threading.Thread):
                             self.setRunningStatus( "Actively stopping subprocesses" )
                             print "its been %d seconds now.. going to aggressive mode" % sec
 
-                            if sec > 10:
+                            if sec > 7:
                                 usesig = signal.SIGKILL
                             else:
                                 usesig = signal.SIGTERM
@@ -1011,7 +1012,7 @@ class encoderThread(threading.Thread):
     def parseSubprocessOutput(self,mtGathering = False):
         
         streamDict = {"mt": [self.stdoutSockMT, self.stderrSockMT]}
-                      
+        
         # if we are in mtGathering mode, we ignore menc
         if not mtGathering:
             streamDict["menc"] = [self.stdoutSockMenc, self.stderrSockMenc]
@@ -1063,7 +1064,7 @@ class encoderThread(threading.Thread):
                 print "STDERR %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstderr)
 
 
-    def buildMencoderCmd(self,twoPass,passNumber):
+    def buildMencoderCmd(self):
         
         prefs = self.notifyWindow.prefs
         
@@ -1092,21 +1093,21 @@ class encoderThread(threading.Thread):
         ### Video
 
         # load this pass' options
-        if twoPass:
+        if self.twoPass:
 
-            if passNumber == 1:
+            if self.currentPass == 1:
                 encOpts = prefs['videoFirstPassOpts']+':pass=1'
             else:
                 encOpts = prefs['videoSecondPassOpts']+':pass=2'
 
         else:
 
-            if passNumber == 1:
+            if self.currentPass == 1:
                 encOpts = prefs['videoFirstPassOpts']
             else:
                 encOpts = prefs['videoSecondPassOpts']
 
-                      
+                
         # 0 is xvid
         if prefs['videoCodec'] == 0:                 
             mencoderCmd.extend(['-ovc','xvid','-xvidencopts',encOpts])
@@ -1118,11 +1119,20 @@ class encoderThread(threading.Thread):
         if len(prefs['videoFilter']):            
             mencoderCmd.extend(['-vf',prefs['videoFilter']])
 
-        mencoderCmd.extend([
-                # '-frames','200', # debug - only do 100 frames
-                '-o', '/home/sean/Desktop/video-thread-%d.avi' % self.threadID
-                ])
-                                           
+        # debugging
+        mencoderCmd.extend(['-frames','400'])
+
+        if self.twoPass:
+
+            if self.currentPass == 1:
+                mencoderCmd.extend(['-o', '/dev/null'])
+            else:
+                mencoderCmd.extend(['-o', 'video-thread-%d.avi' % self.threadID])
+
+            mencoderCmd.extend(['-passlogfile', 'logfile-thread-%d.log' % self.threadID])
+        else:
+            mencoderCmd.extend(['-o', 'video-thread-%d.avi' % self.threadID])
+            
         return mencoderCmd
     
     def startMythtranscode(self):
@@ -1133,13 +1143,13 @@ class encoderThread(threading.Thread):
 
         # fire up mythtranscode turbo=1:subq=1:frameref=1
         mythTranscodeCmd = ['/usr/bin/mythtranscode',
-               '--showprogress',
-               '-p','autodetect',
-               '-c',str(self.program.chanid),
-               '-s',self.program.recstartts.strftime('%Y-%m-%dT%H:%M:%S'),
-               '-f',self.fifoDir,
-               '--honorcutlist',
-               '--verbose','libav']
+                            '--showprogress',
+                            '-p','autodetect',
+                            '-c',str(self.program.chanid),
+                            '-s',self.program.recstartts.strftime('%Y-%m-%dT%H:%M:%S'),
+                            '-f',self.fifoDir,
+                            '--honorcutlist',
+                            '--verbose','libav']
         print mythTranscodeCmd        
         
         # use sockets for the subprocess file objects so we can read from stdout/stderr in a non-blocking fashion
@@ -1183,17 +1193,17 @@ class encoderThread(threading.Thread):
         
         # die!
         sys.exit()
-       
+        
     def sendEncoderEvent(self, threadState, listMessage):
         wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID, threadState, listMessage))
-            
+        
     def isfifo(self,fn):
         return os.access(fn,os.R_OK) and stat.S_ISFIFO(os.stat(fn).st_mode)
 
-        
+    
 
 ###########################################################################
-        
+    
 
 class preferencesFrame(wx.Frame):
     def __init__(self, *args, **kwds):
@@ -1205,6 +1215,7 @@ class preferencesFrame(wx.Frame):
         self.preferencesQueuePane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesEncodersPane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesMythTVPane = wx.Panel(self.preferencesNotebook, -1)
+        self.label_22 = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Settings: ")
         self.mysqlHostLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Hostname: ")
         self.mysqlHostText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
         self.mysqlPortLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Port: ")
@@ -1215,6 +1226,9 @@ class preferencesFrame(wx.Frame):
         self.mysqlPasswordText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
         self.mysqlDBNameLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Database Name: ")
         self.mysqlDBNameText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.mythOptionsLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MythTV Options: ")
+        self.useMythCutlistLabel = wx.StaticText(self.preferencesMythTVPane, -1, "Use Myth Cutlists: ")
+        self.useMythCutlistChoice = wx.Choice(self.preferencesMythTVPane, -1, choices=["Yes", "No"])
         self.FileOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "File Options:")
         self.containerFormatLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
         self.containerFormatChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["avi", "mkv"])
@@ -1256,6 +1270,7 @@ class preferencesFrame(wx.Frame):
         
         # a map of which 'prefs' keys map to which controls in the preferences dialog, and the control type
         # we use this for getting/setting values in the preferences dialog
+
         self.prefMap = {'mysqlHost': ['TextCtrl', self.mysqlHostText],
                         'mysqlPort': ['TextCtrl', self.mysqlPortText],
                         'mysqlUser': ['TextCtrl', self.mysqlUserText],
@@ -1279,6 +1294,7 @@ class preferencesFrame(wx.Frame):
     def __set_properties(self):
         # begin wxGlade: preferencesFrame.__set_properties
         self.SetTitle("MythRip - Preferences")
+        self.useMythCutlistChoice.SetSelection(0)
         self.containerFormatChoice.SetSelection(0)
         self.videoCodecChoice.SetSelection(0)
         self.twoPassVideoChoice.SetSelection(0)
@@ -1293,7 +1309,9 @@ class preferencesFrame(wx.Frame):
         preferencesFilesSizer = wx.FlexGridSizer(6, 2, 0, 0)
         preferencesQueueSIzer = wx.FlexGridSizer(2, 2, 0, 0)
         preferencesEncodersSizer = wx.FlexGridSizer(7, 2, 0, 0)
-        preferencesMythTVSizer = wx.FlexGridSizer(9, 2, 0, 0)
+        preferencesMythTVSizer = wx.FlexGridSizer(8, 2, 0, 0)
+        preferencesMythTVSizer.Add(self.label_22, 0, 0, 0)
+        preferencesMythTVSizer.Add((20, 20), 0, 0, 0)
         preferencesMythTVSizer.Add(self.mysqlHostLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesMythTVSizer.Add(self.mysqlHostText, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesMythTVSizer.Add(self.mysqlPortLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
@@ -1304,13 +1322,17 @@ class preferencesFrame(wx.Frame):
         preferencesMythTVSizer.Add(self.mysqlPasswordText, 0, wx.EXPAND, 0)
         preferencesMythTVSizer.Add(self.mysqlDBNameLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesMythTVSizer.Add(self.mysqlDBNameText, 0, wx.EXPAND, 0)
+        preferencesMythTVSizer.Add(self.mythOptionsLabel, 0, wx.TOP, 10)
+        preferencesMythTVSizer.Add((20, 20), 0, 0, 0)
+        preferencesMythTVSizer.Add(self.useMythCutlistLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.useMythCutlistChoice, 0, 0, 0)
         self.preferencesMythTVPane.SetSizer(preferencesMythTVSizer)
         preferencesMythTVSizer.AddGrowableCol(1)
         preferencesEncodersSizer.Add(self.FileOptionsLabel, 0, 0, 0)
         preferencesEncodersSizer.Add((10, 10), 0, 0, 0)
         preferencesEncodersSizer.Add(self.containerFormatLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesEncodersSizer.Add(self.containerFormatChoice, 0, 0, 0)
-        preferencesEncodersSizer.Add(self.videoOptionsLabel, 0, wx.ALIGN_BOTTOM, 0)
+        preferencesEncodersSizer.Add(self.videoOptionsLabel, 0, wx.TOP|wx.ALIGN_BOTTOM, 10)
         preferencesEncodersSizer.Add((20, 20), 0, 0, 0)
         preferencesEncodersSizer.Add(self.videoCodecLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesEncodersSizer.Add(self.videoCodecChoice, 0, 0, 0)
@@ -1322,7 +1344,7 @@ class preferencesFrame(wx.Frame):
         preferencesEncodersSizer.Add(self.videoSecondPassOptsText, 0, wx.EXPAND, 0)
         preferencesEncodersSizer.Add(self.videoFilterStringLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesEncodersSizer.Add(self.videoFilterStringText, 0, wx.EXPAND, 0)
-        preferencesEncodersSizer.Add(self.audioOptionsLabel, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.audioOptionsLabel, 0, wx.TOP, 10)
         preferencesEncodersSizer.Add((20, 20), 0, 0, 0)
         preferencesEncodersSizer.Add(self.audioCodecLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesEncodersSizer.Add(self.audioCodecChoice, 0, 0, 0)
