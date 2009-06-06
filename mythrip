@@ -846,7 +846,10 @@ class encoderThread(threading.Thread):
         self.audioRate = ""
         self.audioChannels = ""
         self.currentPass = 0
-
+        self.currentFrame = 0
+        self.currentFPS = 0
+        self.maxFrame = 0
+        
         # load parent constructor
         threading.Thread.__init__(self)
     
@@ -1030,20 +1033,31 @@ class encoderThread(threading.Thread):
                 # if this is mythtranscode, we need to gather up all the output so we may parse out video and audio parameters
                 if mtGathering:
                     self.mythTranscodeStdout += newstdout
-
+                    
                 # parse mencoder output for the queue listctrl
                 if name == "menc":
                     # Pos:   6.1s    192f ( 0%) 35.13fps Trem:   0min   0mb  A-V:0.033 [715:1536]
                     match = re.findall('Pos\: +([0-9\.]+)s +([0-9]+)f \(([0-9 ]+%)\) +([0-9\.]+)fps',newstdout) # pull mencoder output
                     if match:
-                        self.setRunningStatus("%s - %s seconds, frame %s (%s fps)" % (match[0][2], match[0][0], match[0][1], match[0][3]))
-                    
+                        self.currentFrame = int(match[0][1])
+                        self.currentFPS = float(match[0][3])
 
                 # because we just receive data periodically we might be getting only pieces of full output lines.. but this is just a progress indicator, its good enough
-                # match = re.findall('.*Processed: (.*)',newstdout)
-                # if match:
-                # self.sendEncoderEvent( "running", "Pass %d : %s" % (self.currentPass, match[0]) )
+                if name == "mt":
+                    match = re.findall('.*Processed: [0-9]+ of ([0-9]+) frames',newstdout)
+                    if match:
+                        self.maxFrame = int(match[0])
+
+                
+                if self.currentFrame and self.maxFrame:
+                    perc = self.currentFrame / float(self.maxFrame) * 100 
+
+                    self.setRunningStatus("%d%% : Frame %d / %d : %0.02f fps" % (int(perc), self.currentFrame, self.maxFrame, self.currentFPS ) )
+
+                elif self.currentFrame:
                     
+                    self.setRunningStatus("0%% : Frame %d / ????: %0.02f fps" % (self.currentFrame, self.currentFPS) )
+
                 print "STDOUT %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstdout)
             if len(newstderr):
                 print "STDERR %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstderr)

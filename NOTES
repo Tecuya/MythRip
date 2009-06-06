@@ -10,3 +10,4 @@ fixme:
   
   python bindings are hacked to work with my proto version .. what to do?
 
+  prefs dialog doesnt revert to old settings when you hit cancel
