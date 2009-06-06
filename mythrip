@@ -12,8 +12,10 @@ import mythtv
 import threading
 import subprocess
 import socket
-
+import re
 import time   # for debugging only so far
+import signal
+import stat
 
 # begin wxGlade: extracode
 # end wxGlade
@@ -115,16 +117,17 @@ class mainFrame(wx.Frame):
                            { 'short': '-d', 'long': '--mysqldb', 'action': 'store', 'dest': 'mysqlDB', 'default': 'localhost', 'help': 'MythTV MySQL Database Name', 'autoDiscover': True},
                            { 'short': '-c', 'long': '--container', 'action': 'store', 'dest': 'containerFormat', 'default': '0', 'help' : 'Container format' },
                            { 'short': '-v', 'long': '--videocodec', 'action': 'store', 'dest': 'videoCodec', 'default': '0', 'help' : 'Video Codec Choice Index' },
-                           { 'short': '-V', 'long': '--videocodecopts', 'action': 'store', 'dest': 'videoCodecOptions', 'default': '', 'help' : 'Video Codec Option String' },
+                           { 'short': '-1', 'long': '--videocodecopts', 'action': 'store', 'dest': 'videoFirstPassOpts', 'default': '', 'help' : 'Video Codec Option String - Pass 1' },
+                           { 'short': '-2', 'long': '--videocodecoptspass2', 'action': 'store', 'dest': 'videoSecondPassOpts', 'default': '', 'help' : 'Video Codec Option String - Pass 2' },
                            { 'short': '-f', 'long': '--videofilter', 'action': 'store', 'dest': 'videoFilter', 'default': 'pp=fd', 'help': 'Video Filter String' },
-                           { 'short': '-2', 'long': '--twopass', 'action': 'store', 'dest': 'twoPassVideo', 'default': '0', 'help' : 'Two Pass Video Choice Index' },
+                           { 'short': '-T', 'long': '--twopass', 'action': 'store', 'dest': 'twoPassVideo', 'default': '0', 'help' : 'Two Pass Video Choice Index' },
                            { 'short': '-a', 'long': '--audiocodec', 'action': 'store', 'dest': 'audioCodec', 'default': '0', 'help' : 'Audio Codec Choice Index' },
                            { 'short': '-A', 'long': '--audiocodecopts', 'action': 'store', 'dest': 'audioCodecOptions', 'default': '', 'help' : 'Audio Codec Option String' },
                            { 'short': '-F', 'long': '--audiofilter', 'action': 'store', 'dest': 'audioFilter', 'default': '', 'help' : 'Audio Filter String' },
                            { 'short': '-t', 'long': '--threadcount', 'action': 'store', 'dest': 'threadCount', 'default': '2', 'help' : 'Max Simultaneous Encoding Jobs' },
                            { 'short': '-r', 'long': '--removecompleted', 'action': 'store', 'dest': 'removeCompleted', 'default': '0', 'help' : 'Remove Completed Job Choice Index' },                       
                            { 'short': '-s', 'long': '--savepath', 'action': 'store', 'dest': 'savePath', 'default': os.path.expanduser('~/Desktop'), 'help' : 'Save Encodings to Path' }, 
-                           { 'short': '-T', 'long': '--filetemplate', 'action': 'store', 'dest': 'fileTemplate', 'default': '%s - %t.%x', 'help' : 'Output File Naming Template' }
+                           { 'short': '-x', 'long': '--filetemplate', 'action': 'store', 'dest': 'fileTemplate', 'default': '%s - %t.%x', 'help' : 'Output File Naming Template' }
                            # use this to add new rows easily:
                            # { 'short': '-', 'long': '--', 'action': '', 'dest': '', 'default': '', 'help' : '' }                                                      
                            )
@@ -136,13 +139,16 @@ class mainFrame(wx.Frame):
         self.loadPrefsFromCli()
 
         # push the prefs we've gathered in to the preferences frame
-        self.preferencesFrame.setPreferences( self.prefs )
-        
+        self.populatePrefsToChildren()
+
         ###############################################################################
         # make mythtv connection and load data from it
         
         # a variable to stuff the program list in to
         self.programList = []
+
+        # connect to mythtv
+        self.connectToMyth()
 
         # load recordings from myth
         self.loadRecordingsFromMyth()
@@ -172,6 +178,16 @@ class mainFrame(wx.Frame):
         self.Layout()
         # end wxGlade
 
+    def connectToMyth(self):        
+        # establish our MythTV connection using the mythtv python bindings, push our preferences in to it
+        try: 
+            self.mythTV = mythtv.MythTV(force_db_opts=self.prefs)
+        except Exception, e:
+            self.showErrorDialog("Error connecting to MythTV", "Error connecting to MythTV:\n%s\nPlease alter your MythTV settings in the Preferences Dialog"%str(e))
+            # it failed?  send the user to the preferences dialog
+            self.preferencesFrame.Show()
+
+        
     def loadRecordingsFromMyth(self):
 
         # delete any listctrl items currently present
@@ -181,22 +197,8 @@ class mainFrame(wx.Frame):
         # reset the programList
         self.programList = []
 
-        # establish our MythTV connection using the mythtv python bindings, push our preferences in to it
-        try: 
-            self.mythTV = mythtv.MythTV(force_db_opts=self.prefs)
-
-            # query recordings from the backend
-            rawRecordings = self.mythTV.backendCommand('QUERY_RECORDINGS Play').split(mythtv.BACKEND_SEP)
-
-        except Exception, e:
-            
-            # it failed?  send the user to the preferences dialog
-            errorDialog = wx.MessageDialog(parent=self, caption="Error connecting to MythTV", message="Error connecting to MythTV:\n%s\nPlease alter your MythTV settings in the Preferences Dialog"%str(e))
-            errorDialog.ShowModal()
-            self.preferencesFrame.Show()
-
-            rawRecordings = []
-            
+        # query recordings from the backend
+        rawRecordings = self.mythTV.backendCommand('QUERY_RECORDINGS Play').split(mythtv.BACKEND_SEP)            
 
         if len(rawRecordings):
             # determine the record length and number of recordings present in the response
@@ -211,10 +213,10 @@ class mainFrame(wx.Frame):
 
                 recordingData = rawRecordings[idxStart:idxStop]
 
-                # print "RECORDING: ",recordingData,"------------------------------------------------------\n\n\n"
+                print "RECORDING: ",recordingData,"------------------------------------------------------\n\n\n"
 
                 self.programList.append( mythtv.Program( recordingData ) )
-
+            
         # add recording count to the status bar
         self.mainFrameStatusbar.PushStatusText('Loaded %d recordings' % len(self.programList))
         
@@ -383,7 +385,10 @@ class mainFrame(wx.Frame):
                 print "pref ",option['dest']," loaded with value",value,"from cli"
                 self.prefs[option['dest']] = value
                 
-                
+    def populatePrefsToChildren(self):
+        self.preferencesFrame.setPreferences( self.prefs )
+        self.encoderQueueFrame.setPreferences( self.prefs )
+
         
     def onPrefsOK(self, event):
 
@@ -391,6 +396,8 @@ class mainFrame(wx.Frame):
         self.prefs = self.preferencesFrame.getPreferences()
         
         self.writePrefsToDisk()
+
+        self.populatePrefsToChildren()
 
         self.mainFrameStatusbar.PushStatusText('Preferences saved.')
 
@@ -471,6 +478,10 @@ class mainFrame(wx.Frame):
                 "mysqlPassword": dbconn_pass}
         
 
+    def showErrorDialog(self,title,message):
+        errorDialog = wx.MessageDialog(parent=self, caption=title, message=message)
+        errorDialog.ShowModal()
+
     ###########################################################################
     # event handler land
 
@@ -535,7 +546,7 @@ class mainFrame(wx.Frame):
         event.Skip()
 
     def onToolbarPrefs(self, event): # wxGlade: mainFrame.<event_handler>
-        print "Event handler `onToolbarPrefs' not implemented"
+        self.preferencesFrame.Show()
         event.Skip()
 
     def onToolbarQuit(self, event): # wxGlade: mainFrame.<event_handler>
@@ -616,7 +627,6 @@ class encoderOptionsFrame(wx.Frame):
 class encoderQueueFrame(wx.Frame):
     def __init__(self, *args, **kwds):
 
-
         toolbarPause = wx.NewId()
         toolbarRemove = wx.NewId()
         toolbarUp = wx.NewId()
@@ -660,6 +670,9 @@ class encoderQueueFrame(wx.Frame):
 
         # this variable contains a list of encoder jobs, including their thread handles
         self.threads = {}
+        
+        # this holds our app preferences
+        self.prefs = {}
 
         # set up the listctrl
         self.encoderQueueListCtrl.InsertColumn(0, "Show")
@@ -734,7 +747,12 @@ class encoderQueueFrame(wx.Frame):
         self.encoderQueueListCtrl.SetColumnWidth(1, wx.LIST_AUTOSIZE)
         self.encoderQueueListCtrl.SetColumnWidth(2, wx.LIST_AUTOSIZE)
         self.encoderQueueListCtrl.SetColumnWidth(3, wx.LIST_AUTOSIZE)
-    
+
+    def setPreferences(self, prefs):
+        print "encoder queue frame received new prefs"
+        self.prefs = prefs
+
+
     ##########################################################################################
     # event handlers
 
@@ -760,6 +778,7 @@ class encoderQueueFrame(wx.Frame):
             
 
         self.encoderQueueListCtrl.SetStringItem(listCtrlIndex, 3, event.listMessage)
+        self.resizeEncoderQueueListCtrl()
         
         event.Skip()
 
@@ -819,111 +838,186 @@ class encoderThread(threading.Thread):
         self.threadID = threadID
         self.doCommand = ""
         self.mythTranscodeProcess = False
+        self.mythTranscodeStdout = ""
+        self.fifoDir = ""
+        self.vidWidth = ""
+        self.vidHeight = ""
+        self.vidFramerate = ""
+        self.audioRate = ""
+        self.audioChannels = ""
+        self.currentPass = 0
 
         # load parent constructor
         threading.Thread.__init__(self)
     
+        
     def run(self):
                 
         print "Thread ID %d : %s" % (self.threadID, self.program)
         
-        # get directory for our fifos to live in
-        fifoDir = '/tmp/mythrip-%d-fifo' % self.threadID
+        self.startMythtranscode()
 
-        if os.path.isdir(fifoDir):
-            try:
-                shutil.rmtree(fifoDir)
-            except Exception, e:
-                self.endThread("failed","Could not remove stale fifo directory: %s" % e)
-
-        try:
-            os.mkdir(fifoDir)
-        except Exception, e:
-            self.endThread("failed","Failed creating fifo directories: %s" % e)
-
-        # fire up mythtranscode 
-        mythTranscodeCmd = ['/usr/bin/mythtranscode',
-               '--showprogress',
-               '-p','autodetect',
-               '-c',str(self.program.chanid),
-               '-s',self.program.recstartts.strftime('%Y-%m-%dT%H:%M:%S'),
-               '-f',fifoDir,
-               '--honorcutlist']
-        
-        
-        # use sockets for the subprocess file objects so we can read from stdout/stderr in a non-blocking fashion
-        self.stdoutSockMT, stdoutChildSockMT = socket.socketpair() 
-        self.stderrSockMT, stderrChildSockMT = socket.socketpair() 
-        self.stdoutSockMT.settimeout(0.1)
-        self.stderrSockMT.settimeout(0.1)
-
-        self.mythTranscodeProcess = subprocess.Popen(mythTranscodeCmd, stdin=None, stdout=stdoutChildSockMT.fileno(), stderr=stderrChildSockMT.fileno())
-
-        # replace me with a thing that waits to verify the fifo is up and ready
-        time.sleep(1)
-        
-        # now fire up mencoder reading from mythtranscode's fifo
-        # mencoder -aspect 1.33333333333333 -noskip -idx /tmp/fifodir_7895/vidout -audiofile /tmp/fifodir_7895/audout -demuxer 20 -audio-demuxer 20 -rawaudio rate=48000:channels=2 -demuxer 26 -rawvideo w=720:h=480:fps=29.970 -ovc xvid -passlogfile /tmp/xvid.7895.log -oac copy -xvidencopts bitrate=684:pass=1:quant_type=mpeg:threads=2:keyframe_boost=10:kfthreshold=1:kfreduction=20 -o /dev/null -vf crop=700:468:10:6,lavcdeint,scale=640:480
-
-        mencoderCmd = ['/usr/bin/mencoder','-noskip','-idx',
-                       os.path.join(fifoDir, 'vidout'),
-                       '-audiofile', os.path.join(fifoDir,'audout'),
-                       '-demuxer','20','-audio-demuxer','20',
-                       '-rawvideo','w=720:h=480:fps=29.970',
-                       '-rawaudio','rate=48000:channels=2','-demuxer','26',# '-rawvideo',
-                       '-oac','copy',
-                       
-                       # xvid
-                       '-ovc','xvid',
-                       '-xvidencopts','bitrate=684',
-
-                       # '-passlogfile',os.path.join(fifoDir,'logfile.log'),
-
-                       # x264
-                       '-ovc','x264',
-                       '-x264encopts','qp=38:bframes=1', # :pass=1', # 'subq=5:8x8dct:frameref=2:bframes=3:b_pyramid:weight_b',
-
-                       '-vf','lavcdeint',
-                       '-o', '/home/sean/Desktop/video-thread-%d.avi' % self.threadID]
-
-        self.stdoutSockMenc, stdoutChildSockMenc = socket.socketpair() 
-        self.stderrSockMenc, stderrChildSockMenc = socket.socketpair() 
-        self.stdoutSockMenc.settimeout(0.1)
-        self.stderrSockMenc.settimeout(0.1)
-        
-        self.mencoderProcess = subprocess.Popen(mencoderCmd, stdin=None, stdout=stdoutChildSockMT.fileno(), stderr=stderrChildSockMT.fileno())
-    
-
-        
-        self.sendEncoderEvent( "started", "Encoding started." )
-
-        while True:
-            
-            self.parseSubprocessOutput()
-            
-            # it seems we are getting a None result before the thread actually dies
-            # if self.mythTranscodeProcess.poll() == None:                
-            # self.parseSubprocessOutput()
-            # self.endThread("done","Encoder poll returned None")                
-            # break
-
-            # check for the abort command and if its there then bail!
-            if self.doCommand == "abort":
-                self.endThread("abort","Thread aborted.")
+        # now we need to examine the mythtranscode output to determine the video and audio parameters .. 
+        # we wait up to 10 seconds for them to show up in self.mythTranscodeStdout
+        for i in range(10): 
+            self.parseSubprocessOutput(mtGathering = True)
+            print self.mythTranscodeStdout,"\n-----------------------------------------"
+            if re.search(".*Stream.*Audio.*kb/s", self.mythTranscodeStdout):
+                print "Found file AV parameters! Beginning extraction from mythtranscode output"
+                (self.vidWidth, self.vidHeight, self.vidFramerate) = re.findall('.*Stream #.* ([0-9]+)x([0-9]+).* ([0-9]+\.[0-9]+) tb',self.mythTranscodeStdout)[0]
+                (self.audioRate, audioChanMode) = re.findall('.*Stream #.* ([0-9]+) Hz, ([A-Za-z]+)',self.mythTranscodeStdout)[0]
+                if audioChanMode == "stereo":
+                    self.audioChannels = "2"
+                else:
+                    # TODO im not sure what other values are produced in this slot
+                    self.audioChannels = "1"
                 break
 
-            # wait a second before checking the subprocess again
             time.sleep(1)
 
         
-    def parseSubprocessOutput(self):
+
+        twoPass = (self.notifyWindow.prefs["twoPassVideo"] == 0)
+        # 0 is yes...
+        if twoPass:
+            mencCount = 2
+        else:
+            mencCount = 1
+            
+        # loop as many times as we are supposed to start mencoder
+        for i in range(mencCount):
+            
+            self.currentPass = i+1
+
+            # if this isnt the first loop, we can't count on mythtranscode being started!  we need to start a new one for subsequent passes
+            if self.currentPass != 1:
+                self.startMythtranscode()
+
+            mencoderCmd = self.buildMencoderCmd( twoPass=twoPass, passNumber=self.currentPass )
+            print mencoderCmd
+
+            self.stdoutSockMenc, stdoutChildSockMenc = socket.socketpair() 
+            self.stderrSockMenc, stderrChildSockMenc = socket.socketpair() 
+            self.stdoutSockMenc.settimeout(0.1)
+            self.stderrSockMenc.settimeout(0.1)
+
+            self.mencoderProcess = subprocess.Popen(mencoderCmd, stdin=None, stdout=stdoutChildSockMenc.fileno(), stderr=stderrChildSockMenc.fileno())
+
+            self.setRunningStatus( "Encoder started." )
+
+            while True:
+
+                print "encoder thread heartbeat"
+
+                self.parseSubprocessOutput()
+                
+                # dead processes
+                mythTranscodeRunning = (self.mythTranscodeProcess.poll() == None)
+                mencoderRunning = (self.mencoderProcess.poll() == None)
+
+                # if they arent both running
+                if not ( mythTranscodeRunning and mencoderRunning ):
+
+                    self.setRunningStatus( "Waiting for all subprocesses to end" )
+
+                    print "alert - mencoderRunning",mencoderRunning,"mythTranscodeRunning",mythTranscodeRunning
+                    
+                    # wait 5 seconds for things to normalize
+                    for sec in range(15):
+                        
+                        # read again
+                        mythTranscodeRunning = (self.mythTranscodeProcess.poll() == None)
+                        mencoderRunning = (self.mencoderProcess.poll() == None)
+                        
+                        if not mythTranscodeRunning and not mencoderRunning:
+                            print "all subprocesses dead"
+                            break
+
+                        if sec > 5:
+
+                            # read again
+                            mythTranscodeRunning = (self.mythTranscodeProcess.poll() == None)
+                            mencoderRunning = (self.mencoderProcess.poll() == None)
+
+                            self.setRunningStatus( "Actively stopping subprocesses" )
+                            print "its been %d seconds now.. going to aggressive mode" % sec
+
+                            if sec > 10:
+                                usesig = signal.SIGKILL
+                            else:
+                                usesig = signal.SIGTERM
+
+                            if mythTranscodeRunning:
+                                print "aggr, mencoder died but mythtranscode continues to run.  killing it."
+                                os.kill(self.mythTranscodeProcess.pid, usesig)
+
+                            if mencoderRunning:
+                                print "aggr, the 5 sec wait, mythTranscode died but mencoder continues to run.  killing it."
+                                os.kill(self.mencoderProcess.pid, usesig)
+
+
+                        # wait a second.. both processes should be disolving more or less simultaneously
+                        time.sleep(1);
+
+
+                    self.parseSubprocessOutput()
+
+                    # proceed to next pass or to termination or whatever
+                    break 
+                
+
+
+                # check for the abort command and if its there then bail!
+                if self.doCommand == "abort":
+                    self.setRunningStatus( "Aborted by user" )
+                    self.endThread("abort","Thread aborted.") # die!
+
+                # wait a second before checking the subprocess again
+                time.sleep(0.1)
+
+        self.sendEncoderEvent( "stopped", "Completed" )
+
+
+    def clearFifoDir(self):
+        print "clearFifoDir"
+
+        # get directory for our fifos to live in
+        self.fifoDir = '/tmp/mythrip-%d-fifo' % self.threadID
+
+        # we'll try killing that fifo dir 10 times.
+        for sec in range(10):
+            
+            self.setRunningStatus( "Waiting for mythtranscode fifos" )
+
+            if os.path.isdir(self.fifoDir):
+                try:
+                    shutil.rmtree(self.fifoDir)
+                except Exception, e:
+                    self.endThread("failed","Could not remove stale fifo directory: %s" % e)
+            else:
+                break
+
+            time.sleep(1)
+
+        try:
+            os.mkdir(self.fifoDir)
+        except Exception, e:
+            self.endThread("failed","Failed creating fifo directories: %s" % e)
+
+
+    def parseSubprocessOutput(self,mtGathering = False):
+        
+        streamDict = {"mt": [self.stdoutSockMT, self.stderrSockMT]}
+                      
+        # if we are in mtGathering mode, we ignore menc
+        if not mtGathering:
+            streamDict["menc"] = [self.stdoutSockMenc, self.stderrSockMenc]
         
         # read from all processes
-        for (name,(stdoutSock,stderrSock)) in {"mt": [self.stdoutSockMT, self.stderrSockMT], 
-                                               "menc": [self.stdoutSockMenc, self.stderrSockMenc] }.iteritems():
+        for (name, (stdoutSock,stderrSock)) in streamDict.iteritems():
             newstdout = ""
             newstderr = ""
-
+            
             try:
                 newstdout = stdoutSock.recv(1024)
                 newstderr = stderrSock.recv(1024)
@@ -933,11 +1027,133 @@ class encoderThread(threading.Thread):
 
             # print em out if there was anything
             if len(newstdout):
+                # if this is mythtranscode, we need to gather up all the output so we may parse out video and audio parameters
+                if mtGathering:
+                    self.mythTranscodeStdout += newstdout
+
+                # parse mencoder output for the queue listctrl
+                if name == "menc":
+                    # Pos:   6.1s    192f ( 0%) 35.13fps Trem:   0min   0mb  A-V:0.033 [715:1536]
+                    match = re.findall('Pos\: +([0-9\.]+)s +([0-9]+)f \(([0-9 ]+%)\) +([0-9\.]+)fps',newstdout) # pull mencoder output
+                    if match:
+                        self.setRunningStatus("%s - %s seconds, frame %s (%s fps)" % (match[0][2], match[0][0], match[0][1], match[0][3]))
+                    
+
+                # because we just receive data periodically we might be getting only pieces of full output lines.. but this is just a progress indicator, its good enough
+                # match = re.findall('.*Processed: (.*)',newstdout)
+                # if match:
+                # self.sendEncoderEvent( "running", "Pass %d : %s" % (self.currentPass, match[0]) )
+                    
                 print "STDOUT %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstdout)
             if len(newstderr):
                 print "STDERR %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstderr)
 
 
+    def buildMencoderCmd(self,twoPass,passNumber):
+        
+        prefs = self.notifyWindow.prefs
+        
+        print "loaded prefs",prefs
+
+        # now fire up mencoder reading from mythtranscode's fifo
+        mencoderCmd = ['/usr/bin/mencoder','-noskip','-idx',
+                       os.path.join(self.fifoDir, 'vidout'),
+                       '-audiofile', os.path.join(self.fifoDir,'audout'),
+                       '-demuxer','20','-audio-demuxer','20',
+                       '-rawvideo','w=%s:h=%s:fps=%s' % (self.vidWidth, self.vidHeight, self.vidFramerate),
+                       '-rawaudio','rate=%s:channels=%s' % (self.audioRate, self.audioChannels),
+                       '-demuxer','26']
+
+        ### Audio
+        
+        # dont process sound on first pass of a two-pass encode
+        # if twoPass and passNumber == 1:
+        # mencoderCmd.extend( ['-nosound'] )
+        # else:
+        mencoderCmd.extend( ['-oac','copy'] )
+
+        if len(prefs['audioFilter']):
+            mencoderCmd.extend(['-af',prefs['audioFilter']])
+            
+        ### Video
+
+        # load this pass' options
+        if twoPass:
+
+            if passNumber == 1:
+                encOpts = prefs['videoFirstPassOpts']+':pass=1'
+            else:
+                encOpts = prefs['videoSecondPassOpts']+':pass=2'
+
+        else:
+
+            if passNumber == 1:
+                encOpts = prefs['videoFirstPassOpts']
+            else:
+                encOpts = prefs['videoSecondPassOpts']
+
+                      
+        # 0 is xvid
+        if prefs['videoCodec'] == 0:                 
+            mencoderCmd.extend(['-ovc','xvid','-xvidencopts',encOpts])
+            
+        # 1 is x264
+        elif prefs['videoCodec'] == 1:            
+            mencoderCmd.extend(['-ovc','x264','-x264encopts',encOpts]), # :pass=1', # 'subq=5:8x8dct:frameref=2:bframes=3:b_pyramid:weight_b',
+            
+        if len(prefs['videoFilter']):            
+            mencoderCmd.extend(['-vf',prefs['videoFilter']])
+
+        mencoderCmd.extend([
+                # '-frames','200', # debug - only do 100 frames
+                '-o', '/home/sean/Desktop/video-thread-%d.avi' % self.threadID
+                ])
+                                           
+        return mencoderCmd
+    
+    def startMythtranscode(self):
+        
+        self.clearFifoDir()
+
+        print "Starting mythtranscode!"
+
+        # fire up mythtranscode turbo=1:subq=1:frameref=1
+        mythTranscodeCmd = ['/usr/bin/mythtranscode',
+               '--showprogress',
+               '-p','autodetect',
+               '-c',str(self.program.chanid),
+               '-s',self.program.recstartts.strftime('%Y-%m-%dT%H:%M:%S'),
+               '-f',self.fifoDir,
+               '--honorcutlist',
+               '--verbose','libav']
+        print mythTranscodeCmd        
+        
+        # use sockets for the subprocess file objects so we can read from stdout/stderr in a non-blocking fashion
+        self.stdoutSockMT, stdoutChildSockMT = socket.socketpair() 
+        self.stderrSockMT, stderrChildSockMT = socket.socketpair() 
+        self.stdoutSockMT.settimeout(0.1)
+        self.stderrSockMT.settimeout(0.1)
+        self.mythTranscodeProcess = subprocess.Popen(mythTranscodeCmd, stdin=None, stdout=stdoutChildSockMT.fileno(), stderr=stderrChildSockMT.fileno())
+
+        # 5 second loop
+        for i in range(10):
+            print "waiting for fifo dir %d" % i
+            if self.isfifo( os.path.join(self.fifoDir,'vidout') ):
+                print "fifo present!"
+                break
+
+            time.sleep(1)
+
+    # func called to update the encoder queue frame listctrl item
+    def setRunningStatus(self,status):
+
+        if self.currentPass > 0 and self.notifyWindow.prefs["twoPassVideo"] == 0: # 0 is yes
+            sendStat = "Pass %d : %s" % (self.currentPass, status)
+        else:
+            sendStat = status
+
+        self.sendEncoderEvent( "running", sendStat )
+        
 
     # func called by the main thread in order to issue commands
     def setCommand(self,command):
@@ -950,11 +1166,17 @@ class encoderThread(threading.Thread):
 
         # the last thing the thread does is tell the main thread its terminating, and thats a rule
         self.sendEncoderEvent( threadState, listMessage )
-
+        
+        # die!
         sys.exit()
        
     def sendEncoderEvent(self, threadState, listMessage):
         wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID, threadState, listMessage))
+            
+    def isfifo(self,fn):
+        return os.access(fn,os.R_OK) and stat.S_ISFIFO(os.stat(fn).st_mode)
+
+        
 
 ###########################################################################
         
@@ -979,16 +1201,21 @@ class preferencesFrame(wx.Frame):
         self.mysqlPasswordText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
         self.mysqlDBNameLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Database Name: ")
         self.mysqlDBNameText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.FileOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "File Options:")
         self.containerFormatLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
         self.containerFormatChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["avi", "mkv"])
+        self.videoOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Options: ")
         self.videoCodecLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec: ")
         self.videoCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["xvid", "x264"])
         self.twoPassVideoLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Two-Pass Video: ")
         self.twoPassVideoChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["Yes", "No"])
-        self.videoCodecOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec Options (): ")
-        self.videoCodecOptionsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
-        self.videoFilterStringLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Filter String (-af): ")
+        self.videoFirstPassOptsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "First Pass Options (): ")
+        self.videoFirstPassOptsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.videoSecondPassOptsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Second Pass Options (): ")
+        self.videoSecondPassOptsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.videoFilterStringLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Filter String (-vf): ")
         self.videoFilterStringText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
+        self.audioOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Options:")
         self.audioCodecLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec: ")
         self.audioCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["passthrough", "mp3lame", "ogg", "whatever"])
         self.audioCodecOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec Options ():")
@@ -1022,7 +1249,8 @@ class preferencesFrame(wx.Frame):
                         'mysqlDB': ['TextCtrl', self.mysqlDBNameText],
                         'containerFormat': ['Choice', self.containerFormatChoice],
                         'videoCodec': ['Choice', self.videoCodecChoice],
-                        'videoCodecOptions': ['TextCtrl', self.videoCodecOptionsText],
+                        'videoFirstPassOpts': ['TextCtrl', self.videoFirstPassOptsText],
+                        'videoSecondPassOpts': ['TextCtrl', self.videoSecondPassOptsText],
                         'videoFilter': ['TextCtrl', self.videoFilterStringText],
                         'twoPassVideo': ['Choice', self.twoPassVideoChoice],
                         'audioCodec': ['Choice', self.audioCodecChoice],
@@ -1064,16 +1292,24 @@ class preferencesFrame(wx.Frame):
         preferencesMythTVSizer.Add(self.mysqlDBNameText, 0, wx.EXPAND, 0)
         self.preferencesMythTVPane.SetSizer(preferencesMythTVSizer)
         preferencesMythTVSizer.AddGrowableCol(1)
+        preferencesEncodersSizer.Add(self.FileOptionsLabel, 0, 0, 0)
+        preferencesEncodersSizer.Add((10, 10), 0, 0, 0)
         preferencesEncodersSizer.Add(self.containerFormatLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesEncodersSizer.Add(self.containerFormatChoice, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.videoOptionsLabel, 0, wx.ALIGN_BOTTOM, 0)
+        preferencesEncodersSizer.Add((20, 20), 0, 0, 0)
         preferencesEncodersSizer.Add(self.videoCodecLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesEncodersSizer.Add(self.videoCodecChoice, 0, 0, 0)
         preferencesEncodersSizer.Add(self.twoPassVideoLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesEncodersSizer.Add(self.twoPassVideoChoice, 0, 0, 0)
-        preferencesEncodersSizer.Add(self.videoCodecOptionsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesEncodersSizer.Add(self.videoCodecOptionsText, 0, wx.EXPAND, 0)
+        preferencesEncodersSizer.Add(self.videoFirstPassOptsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.videoFirstPassOptsText, 0, wx.EXPAND, 0)
+        preferencesEncodersSizer.Add(self.videoSecondPassOptsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.videoSecondPassOptsText, 0, wx.EXPAND, 0)
         preferencesEncodersSizer.Add(self.videoFilterStringLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesEncodersSizer.Add(self.videoFilterStringText, 0, wx.EXPAND, 0)
+        preferencesEncodersSizer.Add(self.audioOptionsLabel, 0, 0, 0)
+        preferencesEncodersSizer.Add((20, 20), 0, 0, 0)
         preferencesEncodersSizer.Add(self.audioCodecLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesEncodersSizer.Add(self.audioCodecChoice, 0, 0, 0)
         preferencesEncodersSizer.Add(self.audioCodecOptionsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
