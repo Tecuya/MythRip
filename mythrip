@@ -116,6 +116,7 @@ class mainFrame(wx.Frame):
                            { 'short': '-u', 'long': '--mysqluser', 'action': 'store', 'dest': 'mysqlUser', 'default': 'localhost', 'help': 'MythTV MySQL User', 'autoDiscover': True},
                            { 'short': '-p', 'long': '--mysqlpass', 'action': 'store', 'dest': 'mysqlPassword', 'default': 'localhost', 'help': 'MythTV MySQL Password', 'autoDiscover': True},
                            { 'short': '-d', 'long': '--mysqldb', 'action': 'store', 'dest': 'mysqlDB', 'default': 'localhost', 'help': 'MythTV MySQL Database Name', 'autoDiscover': True},
+                           { 'short': '-C', 'long': '--mythcutlist', 'action': 'store', 'dest': 'useMythCutlist', 'default': '0', 'help': 'Use MythTV Cutlist'},
                            { 'short': '-c', 'long': '--container', 'action': 'store', 'dest': 'containerFormat', 'default': '0', 'help' : 'Container format' },
                            { 'short': '-v', 'long': '--videocodec', 'action': 'store', 'dest': 'videoCodec', 'default': '0', 'help' : 'Video Codec Choice Index' },
                            { 'short': '-1', 'long': '--videocodecopts', 'action': 'store', 'dest': 'videoFirstPassOpts', 'default': '', 'help' : 'Video Codec Option String - Pass 1' },
@@ -1148,8 +1149,12 @@ class encoderThread(threading.Thread):
                             '-c',str(self.program.chanid),
                             '-s',self.program.recstartts.strftime('%Y-%m-%dT%H:%M:%S'),
                             '-f',self.fifoDir,
-                            '--honorcutlist',
-                            '--verbose','libav']
+                            '--verbose','libav' # we pull video parameters out of this verbose output mode
+                            ]
+        
+        if self.notifyWindow.prefs["useMythCustlist"] == 0:
+            mythTranscodeCmd.append('--honorcutlist')
+
         print mythTranscodeCmd        
         
         # use sockets for the subprocess file objects so we can read from stdout/stderr in a non-blocking fashion
@@ -1276,6 +1281,7 @@ class preferencesFrame(wx.Frame):
                         'mysqlUser': ['TextCtrl', self.mysqlUserText],
                         'mysqlPassword': ['TextCtrl', self.mysqlPasswordText],
                         'mysqlDB': ['TextCtrl', self.mysqlDBNameText],
+                        'useMythCustlist': ['Choice', self.useMythCutlistChoice],
                         'containerFormat': ['Choice', self.containerFormatChoice],
                         'videoCodec': ['Choice', self.videoCodecChoice],
                         'videoFirstPassOpts': ['TextCtrl', self.videoFirstPassOptsText],
