@@ -663,7 +663,6 @@ class encoderQueueFrame(wx.Frame):
         toolbarRemove = wx.NewId()
         toolbarUp = wx.NewId()
         toolbarDown = wx.NewId()
-        toolbarOptions = wx.NewId()
 
         # begin wxGlade: encoderQueueFrame.__init__
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
@@ -678,8 +677,6 @@ class encoderQueueFrame(wx.Frame):
         self.encoderQueueFrameToolbar.AddLabelTool(toolbarDown, "Down", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-go-down.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Move selected recording(s) down", "")
         self.encoderQueueFrameToolbar.AddSeparator()
         self.encoderQueueFrameToolbar.AddLabelTool(toolbarCleanup, "Clean Up", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/edit-clear.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Clean Up", "")
-        self.encoderQueueFrameToolbar.AddSeparator()
-        self.encoderQueueFrameToolbar.AddLabelTool(toolbarOptions, "Options", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Open the queue options dialog", "")
         # Tool Bar end
         self.encoderQueueListCtrl = wx.ListCtrl(self, -1, style=wx.LC_REPORT|wx.SUNKEN_BORDER)
         self.encoderQueueCloseButton = wx.Button(self, wx.ID_CLOSE, "")
@@ -691,7 +688,6 @@ class encoderQueueFrame(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.onToolbarUp, id=toolbarUp)
         self.Bind(wx.EVT_TOOL, self.onToolbarDown, id=toolbarDown)
         self.Bind(wx.EVT_TOOL, self.onToolbarCleanup, id=toolbarCleanup)
-        self.Bind(wx.EVT_TOOL, self.onToolbarOptions, id=toolbarOptions)
         self.Bind(wx.EVT_BUTTON, self.onCloseButton, self.encoderQueueCloseButton)
         # end wxGlade
         
@@ -829,10 +825,6 @@ class encoderQueueFrame(wx.Frame):
 
     def onToolbarDown(self, event): # wxGlade: encoderQueueFrame.<event_handler>
         print "Event handler `onToolbarDown' not implemented"
-        event.Skip()
-
-    def onToolbarOptions(self, event): # wxGlade: encoderQueueFrame.<event_handler>
-        print "Event handler `onToolbarOptions' not implemented"
         event.Skip()
 
     def onToolbarCleanup(self, event): # wxGlade: encoderQueueFrame.<event_handler>
