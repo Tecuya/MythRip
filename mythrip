@@ -65,12 +65,14 @@ class mainFrame(wx.Frame):
         # Tool Bar
         self.mainFrameToolbar = wx.ToolBar(self, -1)
         self.SetToolBar(self.mainFrameToolbar)
-        self.mainFrameToolbar.AddLabelTool(toolbarReload, "Reload", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/reload.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "", "")
-        self.mainFrameToolbar.AddLabelTool(toolbarEncode, "Encode", wx.Bitmap("/usr/share/icons/gnome/32x32/categories/applications-system.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Encode selected recordings(s)", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarReload, "Reload", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/reload.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Reload MythTV Recording List", "")
+        self.mainFrameToolbar.AddSeparator()
         self.mainFrameToolbar.AddLabelTool(toolbarView, "View", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-media-play-ltr.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "View selected recordings(s)", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarEncode, "Encode", wx.Bitmap("/usr/share/icons/gnome/32x32/categories/applications-system.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Encode selected recordings(s)", "")
         self.mainFrameToolbar.AddLabelTool(toolbarDelete, "Delete", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/stock_delete.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Delete selected recordings(s)", "")
-        self.mainFrameToolbar.AddLabelTool(toolbarPrefs, "Preferences", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "", "")
-        self.mainFrameToolbar.AddLabelTool(toolbarQuit, "Quit", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/application-exit.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "", "")
+        self.mainFrameToolbar.AddSeparator()
+        self.mainFrameToolbar.AddLabelTool(toolbarPrefs, "Preferences", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Open Preferences Dialog", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarQuit, "Quit", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/application-exit.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Quit", "")
         # Tool Bar end
         self.mainFrameListCtrl = wx.ListCtrl(self, -1, style=wx.LC_REPORT|wx.LC_EDIT_LABELS|wx.LC_SORT_ASCENDING|wx.SUNKEN_BORDER)
 
@@ -81,6 +83,7 @@ class mainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.onMenuQuit, self.quitMenuItem)
         self.Bind(wx.EVT_MENU, self.onMenuPrefs, self.prefsMenuItem)
         self.Bind(wx.EVT_MENU, self.onMenuQueue, self.queMenuItem)
+        self.Bind(wx.EVT_MENU, self.onMenuAbout, self.aboutMenuItem)
         self.Bind(wx.EVT_TOOL, self.onToolbarReload, id=toolbarReload)
         self.Bind(wx.EVT_TOOL, self.onToolbarEncode, id=toolbarEncode)
         self.Bind(wx.EVT_TOOL, self.onToolbarDelete, id=toolbarDelete)
@@ -147,10 +150,10 @@ class mainFrame(wx.Frame):
         self.programList = []
 
         # connect to mythtv
-        self.connectToMyth()
+        if self.connectToMyth():
 
-        # load recordings from myth
-        self.loadRecordingsFromMyth()
+            # load recordings from myth
+            self.loadRecordingsFromMyth()
 
         # prepare the right-click context menu entry definitions
         self.contextMenuEntriesById = {}
@@ -181,10 +184,13 @@ class mainFrame(wx.Frame):
         # establish our MythTV connection using the mythtv python bindings, push our preferences in to it
         try: 
             self.mythTV = mythtv.MythTV(force_db_opts=self.prefs)
+            return True
         except Exception, e:
             self.showErrorDialog("Error connecting to MythTV", "Error connecting to MythTV:\n%s\nPlease alter your MythTV settings in the Preferences Dialog"%str(e))
             # it failed?  send the user to the preferences dialog
             self.preferencesFrame.Show()
+            self.mythTV = False
+            return False
 
         
     def loadRecordingsFromMyth(self):
@@ -212,7 +218,7 @@ class mainFrame(wx.Frame):
 
                 recordingData = rawRecordings[idxStart:idxStop]
 
-                print "RECORDING: ",recordingData,"------------------------------------------------------\n\n\n"
+                # print "RECORDING: ",recordingData,"------------------------------------------------------\n\n\n"
 
                 self.programList.append( mythtv.Program( recordingData ) )
             
@@ -304,6 +310,10 @@ class mainFrame(wx.Frame):
             self.encoderQueueFrame.addProgram(program)
             addcount += 1
 
+        # automatically show encoder queue when we add to it
+        if addcount > 0:
+            self.encoderQueueFrame.Show()
+
         self.mainFrameStatusbar.PushStatusText('Added %d recordings to queue.' % addcount)
         
 
@@ -313,19 +323,8 @@ class mainFrame(wx.Frame):
 	
 	if not os.access(cfgfile,os.F_OK):
 	    print "mythrip config file not found, generating a default one in %s for you.." % cfgfile
-	    cfg = file(cfgfile,'w+')
-	    cfg.write("# Automatically generated mythrip config file.\n\n")
-	    for option in self.optionMap:
+	    self.resetDiskPrefs()
 
-                # we avoid writing the mysql options because they are automatically discovered by the self.findMythMysqlSettings
-                if option.has_key('autoDiscover'):
-                    optionPrefix = "# "
-                else:
-                    optionPrefix = ""
-                
-                cfg.write("# %s\n%s%s %s\n\n" % (option['help'], optionPrefix, option['dest'], option['default']))
-	    cfg.close()
-	    
         # read config file	    
 	lines = file(cfgfile,'r').readlines()
 
@@ -351,9 +350,25 @@ class mainFrame(wx.Frame):
 
         return prefs
 
+    def resetDiskPrefs(self):
+	cfgfile=os.path.expanduser('~')+'/.mythriprc'
+        cfg = file(cfgfile,'w+')
+        cfg.write("# Automatically generated mythrip config file.\n\n")
+        for option in self.optionMap:
+            
+            # we avoid writing the mysql options because they are automatically discovered by the self.findMythMysqlSettings
+            if option.has_key('autoDiscover'):
+                optionPrefix = "# "
+            else:
+                optionPrefix = ""
+
+            cfg.write("# %s\n%s%s %s\n\n" % (option['help'], optionPrefix, option['dest'], option['default']))
+
+        cfg.close()
+
     # write a dictionary of options to the configuration file
     def writePrefsToDisk(self):
-        print "writePrefsToDisk"
+        print "writePrefsToDisk writing prefs"
 
 	cfgFile=os.path.expanduser('~')+'/.mythriprc'
         
@@ -361,6 +376,7 @@ class mainFrame(wx.Frame):
         cfg.write("# Automatically generated mythrip config file.\n\n")
 
         for option in self.optionMap:
+
             if self.prefs.has_key( option["dest"] ): # if the option appears in our prefs then save it
                 cfg.write("## %s\n%s %s\n\n" % (option["help"], option["dest"], self.prefs[ option["dest"] ]))
 
@@ -410,7 +426,11 @@ class mainFrame(wx.Frame):
         # if we did not load mysqlHost from disk, assume we should try and find the myth settings from the myth config files
         if not self.prefs.has_key("mysqlHost"):
             print "mysql host wasnt loaded from disk; searching for mysql settings"
-            self.prefs.update( self.findMythMysqlSettings() )
+
+            mythSettings = self.findMythMysqlSettings()
+            print "myth settings acquired",mythSettings
+
+            self.prefs.update( mythSettings )
             
         self.mainFrameStatusbar.PushStatusText('Preferences loaded.')
         
@@ -462,14 +482,16 @@ class mainFrame(wx.Frame):
                     elif key == "DBPassword":
                         dbconn_pass = val
 
-                if dbconn_host != None or dbconn_name != None or dbconn_user != None or dbconn_pass != None:
-                    found_config = True
-                    break
+            if dbconn_host != None or dbconn_name != None or dbconn_user != None or dbconn_pass != None:
+                print "found config"
+                found_config = True
+                break
         
         # we didn't find a config file, just bail out
         if not found_config:
             return {}
-
+        
+        
         return {"mysqlHost": dbconn_host,
                 "mysqlPort": dbconn_port,
                 "mysqlDB": dbconn_name,
@@ -553,7 +575,18 @@ class mainFrame(wx.Frame):
         event.Skip()
 
     def onToolbarReload(self, event): # wxGlade: mainFrame.<event_handler>
-        self.loadRecordingsFromMyth()
+        if not self.mythTV:
+            self.connectToMyth()
+            
+        if self.mythTV:
+            self.loadRecordingsFromMyth()
+        else:
+            self.mainFrameStatusbar.PushStatusText('No recordings loaded.')
+
+        event.Skip()
+
+    def onMenuAbout(self, event): # wxGlade: mainFrame.<event_handler>
+        print "Event handler `onMenuAbout' not implemented"
         event.Skip()
 
 # end of class mainFrame
@@ -626,7 +659,7 @@ class encoderOptionsFrame(wx.Frame):
 class encoderQueueFrame(wx.Frame):
     def __init__(self, *args, **kwds):
 
-        toolbarPause = wx.NewId()
+        toolbarCleanup = wx.NewId()
         toolbarRemove = wx.NewId()
         toolbarUp = wx.NewId()
         toolbarDown = wx.NewId()
@@ -639,11 +672,12 @@ class encoderQueueFrame(wx.Frame):
         # Tool Bar
         self.encoderQueueFrameToolbar = wx.ToolBar(self, -1)
         self.SetToolBar(self.encoderQueueFrameToolbar)
-        self.encoderQueueFrameToolbar.AddLabelTool(toolbarPause, "Pause", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-media-pause.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Pause selected job(s)", "")
-        self.encoderQueueFrameToolbar.AddLabelTool(toolbarRemove, "Remove", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-cancel.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Remove from queue", "Remove an item from the encoding queue")
+        self.encoderQueueFrameToolbar.AddLabelTool(toolbarRemove, "Remove", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-cancel.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Remove from queue", "")
         self.encoderQueueFrameToolbar.AddSeparator()
         self.encoderQueueFrameToolbar.AddLabelTool(toolbarUp, "Up", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-go-up.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Move selected recording(s) up", "")
         self.encoderQueueFrameToolbar.AddLabelTool(toolbarDown, "Down", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-go-down.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Move selected recording(s) down", "")
+        self.encoderQueueFrameToolbar.AddSeparator()
+        self.encoderQueueFrameToolbar.AddLabelTool(toolbarCleanup, "Clean Up", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/edit-clear.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Clean Up", "")
         self.encoderQueueFrameToolbar.AddSeparator()
         self.encoderQueueFrameToolbar.AddLabelTool(toolbarOptions, "Options", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Open the queue options dialog", "")
         # Tool Bar end
@@ -653,10 +687,10 @@ class encoderQueueFrame(wx.Frame):
         self.__set_properties()
         self.__do_layout()
 
-        self.Bind(wx.EVT_TOOL, self.onToolbarPause, id=toolbarPause)
         self.Bind(wx.EVT_TOOL, self.onToolbarRemove, id=toolbarRemove)
         self.Bind(wx.EVT_TOOL, self.onToolbarUp, id=toolbarUp)
         self.Bind(wx.EVT_TOOL, self.onToolbarDown, id=toolbarDown)
+        self.Bind(wx.EVT_TOOL, self.onToolbarCleanup, id=toolbarCleanup)
         self.Bind(wx.EVT_TOOL, self.onToolbarOptions, id=toolbarOptions)
         self.Bind(wx.EVT_BUTTON, self.onCloseButton, self.encoderQueueCloseButton)
         # end wxGlade
@@ -785,11 +819,6 @@ class encoderQueueFrame(wx.Frame):
         self.Hide()
         event.Skip()
 
-    def onToolbarPause(self, event): # wxGlade: encoderQueueFrame.<event_handler>
-        
-        print "Event handler `onToolbarPause' not implemented"
-        event.Skip()
-
     def onToolbarRemove(self, event): # wxGlade: encoderQueueFrame.<event_handler>
         print "Event handler `onToolbarRemove' not implemented"
         event.Skip()
@@ -804,6 +833,10 @@ class encoderQueueFrame(wx.Frame):
 
     def onToolbarOptions(self, event): # wxGlade: encoderQueueFrame.<event_handler>
         print "Event handler `onToolbarOptions' not implemented"
+        event.Skip()
+
+    def onToolbarCleanup(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+        print "Event handler `onToolbarCleanup' not implemented"
         event.Skip()
 
 # end of class encoderQueueFrame
@@ -1152,7 +1185,7 @@ class encoderThread(threading.Thread):
                             '--verbose','libav' # we pull video parameters out of this verbose output mode
                             ]
         
-        if self.notifyWindow.prefs["useMythCustlist"] == 0:
+        if self.notifyWindow.prefs["useMythCutlist"] == 0:
             mythTranscodeCmd.append('--honorcutlist')
 
         print mythTranscodeCmd        
@@ -1281,7 +1314,7 @@ class preferencesFrame(wx.Frame):
                         'mysqlUser': ['TextCtrl', self.mysqlUserText],
                         'mysqlPassword': ['TextCtrl', self.mysqlPasswordText],
                         'mysqlDB': ['TextCtrl', self.mysqlDBNameText],
-                        'useMythCustlist': ['Choice', self.useMythCutlistChoice],
+                        'useMythCutlist': ['Choice', self.useMythCutlistChoice],
                         'containerFormat': ['Choice', self.containerFormatChoice],
                         'videoCodec': ['Choice', self.videoCodecChoice],
                         'videoFirstPassOpts': ['TextCtrl', self.videoFirstPassOptsText],
@@ -1428,6 +1461,7 @@ class preferencesFrame(wx.Frame):
             prefs[ prefKey ] = value
 
         return prefs
+
 
     def onCancelButton(self, event): # wxGlade: preferencesFrame.<event_handler>
         self.Hide()
