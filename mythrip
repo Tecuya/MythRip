@@ -869,21 +869,29 @@ class encoderThread(threading.Thread):
         self.program = program
         self.threadID = threadID
         self.doCommand = ""
+
         self.mythTranscodeProcess = False
         self.mythTranscodeStdout = ""
-        self.fifoDir = ""
+        self.mythTranscodeFifoDir = ""
+        
+        # source video/audio properties
         self.vidWidth = ""
         self.vidHeight = ""
         self.vidFramerate = ""
         self.audioRate = ""
         self.audioChannels = ""
+
         self.currentPass = 0
         self.currentFrame = 0
         self.currentFPS = 0
         self.maxFrame = 0
         
+        # make a copy of the preferences at the time the thread was created to avoid them changing mid-stream if the user
+        # alters preferences during a thread's execution
+        self.prefs = self.notifyWindow.prefs 
+
         # boolean describing if two-pass is enabled ; 0 is yes
-        self.twoPass = (self.notifyWindow.prefs["twoPassVideo"] == 0)
+        self.twoPass = (self.prefs["twoPassVideo"] == 0)
 
         # load parent constructor
         threading.Thread.__init__(self)
@@ -913,8 +921,6 @@ class encoderThread(threading.Thread):
                 break
 
             time.sleep(1)
-
-        
 
         
         if self.twoPass:
@@ -1020,16 +1026,16 @@ class encoderThread(threading.Thread):
         print "clearFifoDir"
 
         # get directory for our fifos to live in
-        self.fifoDir = '/tmp/mythrip-%d-fifo' % self.threadID
+        self.mythTranscodeFifoDir = '/tmp/mythrip-%d-fifo' % self.threadID
 
         # we'll try killing that fifo dir 10 times.
         for sec in range(10):
             
             self.setRunningStatus( "Waiting for mythtranscode fifos" )
 
-            if os.path.isdir(self.fifoDir):
+            if os.path.isdir(self.mythTranscodeFifoDir):
                 try:
-                    shutil.rmtree(self.fifoDir)
+                    shutil.rmtree(self.mythTranscodeFifoDir)
                 except Exception, e:
                     self.endThread("failed","Could not remove stale fifo directory: %s" % e)
             else:
@@ -1038,7 +1044,7 @@ class encoderThread(threading.Thread):
             time.sleep(1)
 
         try:
-            os.mkdir(self.fifoDir)
+            os.mkdir(self.mythTranscodeFifoDir)
         except Exception, e:
             self.endThread("failed","Failed creating fifo directories: %s" % e)
 
@@ -1099,15 +1105,13 @@ class encoderThread(threading.Thread):
 
 
     def buildMencoderCmd(self):
-        
-        prefs = self.notifyWindow.prefs
-        
-        print "loaded prefs",prefs
+                
+        print "loaded prefs",self.prefs
 
         # now fire up mencoder reading from mythtranscode's fifo
         mencoderCmd = ['/usr/bin/mencoder','-noskip','-idx',
-                       os.path.join(self.fifoDir, 'vidout'),
-                       '-audiofile', os.path.join(self.fifoDir,'audout'),
+                       os.path.join(self.mythTranscodeFifoDir, 'vidout'),
+                       '-audiofile', os.path.join(self.mythTranscodeFifoDir,'audout'),
                        '-demuxer','20','-audio-demuxer','20',
                        '-rawvideo','w=%s:h=%s:fps=%s' % (self.vidWidth, self.vidHeight, self.vidFramerate),
                        '-rawaudio','rate=%s:channels=%s' % (self.audioRate, self.audioChannels),
@@ -1121,8 +1125,8 @@ class encoderThread(threading.Thread):
         # else:
         mencoderCmd.extend( ['-oac','copy'] )
 
-        if len(prefs['audioFilter']):
-            mencoderCmd.extend(['-af',prefs['audioFilter']])
+        if len(self.prefs['audioFilter']):
+            mencoderCmd.extend( ['-af',self.prefs['audioFilter']] )
             
         ### Video
 
@@ -1130,42 +1134,46 @@ class encoderThread(threading.Thread):
         if self.twoPass:
 
             if self.currentPass == 1:
-                encOpts = prefs['videoFirstPassOpts']+':pass=1'
+                encOpts = self.prefs['videoFirstPassOpts']+':pass=1'
             else:
-                encOpts = prefs['videoSecondPassOpts']+':pass=2'
+                encOpts = self.prefs['videoSecondPassOpts']+':pass=2'
 
         else:
 
             if self.currentPass == 1:
-                encOpts = prefs['videoFirstPassOpts']
+                encOpts = self.prefs['videoFirstPassOpts']
             else:
-                encOpts = prefs['videoSecondPassOpts']
+                encOpts = self.prefs['videoSecondPassOpts']
 
                 
         # 0 is xvid
-        if prefs['videoCodec'] == 0:                 
-            mencoderCmd.extend(['-ovc','xvid','-xvidencopts',encOpts])
+        if self.prefs['videoCodec'] == 0:                 
+            mencoderCmd.extend( ['-ovc','xvid','-xvidencopts',encOpts] )
             
         # 1 is x264
-        elif prefs['videoCodec'] == 1:            
-            mencoderCmd.extend(['-ovc','x264','-x264encopts',encOpts]), # :pass=1', # 'subq=5:8x8dct:frameref=2:bframes=3:b_pyramid:weight_b',
+        elif self.prefs['videoCodec'] == 1:            
+            mencoderCmd.extend( ['-ovc','x264','-x264encopts',encOpts] )  # :pass=1', # 'subq=5:8x8dct:frameref=2:bframes=3:b_pyramid:weight_b',
             
-        if len(prefs['videoFilter']):            
-            mencoderCmd.extend(['-vf',prefs['videoFilter']])
+        if len(self.prefs['videoFilter']):            
+            mencoderCmd.extend( ['-vf',self.prefs['videoFilter']] )
 
         # debugging
-        mencoderCmd.extend(['-frames','400'])
+        mencoderCmd.extend( ['-frames','200'] )
+
 
         if self.twoPass:
 
             if self.currentPass == 1:
-                mencoderCmd.extend(['-o', '/dev/null'])
+                mencoderCmd.extend( ['-o', '/dev/null'] )
             else:
-                mencoderCmd.extend(['-o', 'video-thread-%d.avi' % self.threadID])
+                self.makeOutputFilename()
+                mencoderCmd.extend( ['-o', self.outputFile] )
 
-            mencoderCmd.extend(['-passlogfile', 'logfile-thread-%d.log' % self.threadID])
+            # in two pass mode, always pass the logfile arg
+            mencoderCmd.extend( ['-passlogfile', 'logfile-thread-%d.log' % self.threadID] )
         else:
-            mencoderCmd.extend(['-o', 'video-thread-%d.avi' % self.threadID])
+            outputFile = self.makeOutputFilename()
+            mencoderCmd.extend( ['-o', self.outputFile] )
             
         return mencoderCmd
     
@@ -1181,11 +1189,11 @@ class encoderThread(threading.Thread):
                             '-p','autodetect',
                             '-c',str(self.program.chanid),
                             '-s',self.program.recstartts.strftime('%Y-%m-%dT%H:%M:%S'),
-                            '-f',self.fifoDir,
+                            '-f',self.mythTranscodeFifoDir,
                             '--verbose','libav' # we pull video parameters out of this verbose output mode
                             ]
         
-        if self.notifyWindow.prefs["useMythCutlist"] == 0:
+        if self.prefs["useMythCutlist"] == 0:
             mythTranscodeCmd.append('--honorcutlist')
 
         print mythTranscodeCmd        
@@ -1200,16 +1208,53 @@ class encoderThread(threading.Thread):
         # 5 second loop
         for i in range(10):
             print "waiting for fifo dir %d" % i
-            if self.isfifo( os.path.join(self.fifoDir,'vidout') ):
+            if self.isFifo( os.path.join(self.mythTranscodeFifoDir,'vidout') ):
                 print "fifo present!"
                 break
 
             time.sleep(1)
 
+
+    # when called this func spits out the full path & filename for the new file..?
+    def makeOutputFilename(self, iteration=0):
+
+        templateMap = { '%s': "title",
+                        '%e': "subtitle",
+                        '%d': "description",
+                        '%c': "category",
+                        '%C': "channum",
+                        '%T': "starttime",
+                        '%E': "endtime",
+                        '%i': "seriesid",
+                        '%h': "hostname" }
+        
+        template = self.prefs["fileTemplate"]
+
+        for (code, name) in templateMap.iteritems():
+
+            value = getattr(self.program, name)
+            
+            template = template.replace(code, str(value))
+            
+        extension = 'avi'
+
+        if iteration > 0:
+            filename = '%s - Copy %d.%s' % (template, iteration, extension)
+        else:
+            filename = '%s.%s' % (template, extension)
+            
+        retrFile = os.path.join( self.prefs['savePath'], filename )
+
+        if os.path.isfile(retrFile):
+            return self.makeOutputFilename( iteration=(iteration+1) )
+        else:
+            print "Output filename"
+            self.outputFile = retrFile
+
     # func called to update the encoder queue frame listctrl item
     def setRunningStatus(self,status):
 
-        if self.currentPass > 0 and self.notifyWindow.prefs["twoPassVideo"] == 0: # 0 is yes
+        if self.currentPass > 0 and self.prefs["twoPassVideo"] == 0: # 0 is yes
             sendStat = "Pass %d : %s" % (self.currentPass, status)
         else:
             sendStat = status
@@ -1235,7 +1280,7 @@ class encoderThread(threading.Thread):
     def sendEncoderEvent(self, threadState, listMessage):
         wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID, threadState, listMessage))
         
-    def isfifo(self,fn):
+    def isFifo(self,fn):
         return os.access(fn,os.R_OK) and stat.S_ISFIFO(os.stat(fn).st_mode)
 
     
