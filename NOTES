@@ -17,3 +17,5 @@ todo before release:
   support for more than just 1 or 2 channels of audio (maybe not before release?)
 
   figure out where we want to keep our passlogfile 
+
+  threadDetailFrames - what happens when a frame is destroyed..?
