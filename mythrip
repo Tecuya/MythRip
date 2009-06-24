@@ -30,9 +30,10 @@ class threadDetailFrame(wx.Frame):
         wx.Frame.__init__(self, *args, **kwds)
         self.threadDetailLabel = wx.StaticText(self, -1, "Details for thread:")
         self.threadDetailInformation = wx.StaticText(self, -1, "")
+        self.refreshButton = wx.Button(self, -1, "Refresh")
         self.static_line_1 = wx.StaticLine(self, -1)
-        self.threadMencoderLabel = wx.StaticText(self, -1, "mencoder Pass 1 Command:")
-        self.threadMencoderCmd = wx.StaticText(self, -1, "mencoder --help -vo xv -fs -af volnorm -display :0.1 -fakeoption -example -lorum -ipsum")
+        self.threadMencoderPass1Label = wx.StaticText(self, -1, "mencoder Pass 1 Command:")
+        self.threadMencoderPass1Cmd = wx.StaticText(self, -1, "mencoder --help -vo xv -fs -af volnorm -display :0.1 -fakeoption -example -lorum -ipsum")
         self.static_line_2 = wx.StaticLine(self, -1)
         self.threadMencoderPass2Label = wx.StaticText(self, -1, "mencoder Pass 2 Command:")
         self.threadMencoderPass2Cmd = wx.StaticText(self, -1, "mencoder --help -vo xv -fs -af volnorm -display :0.1 -fakeoption -example -lorum -ipsum")
@@ -46,24 +47,28 @@ class threadDetailFrame(wx.Frame):
         self.__set_properties()
         self.__do_layout()
 
+        self.Bind(wx.EVT_BUTTON, self.onRefreshButton, self.refreshButton)
         self.Bind(wx.EVT_BUTTON, self.onCloseButton, self.closeButton)
         # end wxGlade
         
+        self.Bind(wx.EVT_SIZE, self.onResize, self)
+        
     def __set_properties(self):
         # begin wxGlade: threadDetailFrame.__set_properties
-        pass
+        self.SetTitle("Thread Details")
         # end wxGlade
 
     def __do_layout(self):
         # begin wxGlade: threadDetailFrame.__do_layout
         threadDetailSizer = wx.BoxSizer(wx.VERTICAL)
         threadDetailInfoSizer = wx.BoxSizer(wx.HORIZONTAL)
-        threadDetailInfoSizer.Add(self.threadDetailLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        threadDetailInfoSizer.Add(self.threadDetailLabel, 0, wx.ALIGN_CENTER_VERTICAL, 0)
         threadDetailInfoSizer.Add(self.threadDetailInformation, 0, wx.ALIGN_CENTER_VERTICAL, 0)
-        threadDetailSizer.Add(threadDetailInfoSizer, 0, 0, 0)
+        threadDetailInfoSizer.Add(self.refreshButton, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        threadDetailSizer.Add(threadDetailInfoSizer, 0, wx.EXPAND, 0)
         threadDetailSizer.Add(self.static_line_1, 0, wx.EXPAND, 0)
-        threadDetailSizer.Add(self.threadMencoderLabel, 0, 0, 0)
-        threadDetailSizer.Add(self.threadMencoderCmd, 0, 0, 0)
+        threadDetailSizer.Add(self.threadMencoderPass1Label, 0, 0, 0)
+        threadDetailSizer.Add(self.threadMencoderPass1Cmd, 0, 0, 0)
         threadDetailSizer.Add(self.static_line_2, 0, wx.EXPAND, 0)
         threadDetailSizer.Add(self.threadMencoderPass2Label, 0, 0, 0)
         threadDetailSizer.Add(self.threadMencoderPass2Cmd, 0, 0, 0)
@@ -72,7 +77,7 @@ class threadDetailFrame(wx.Frame):
         threadDetailSizer.Add(self.mencoderStdoutText, 0, wx.EXPAND, 0)
         threadDetailSizer.Add(self.mencoderStderrLabel, 0, 0, 0)
         threadDetailSizer.Add(self.mencoderStderrText, 0, wx.EXPAND, 0)
-        threadDetailSizer.Add(self.closeButton, 0, wx.ALIGN_CENTER_HORIZONTAL, 0)
+        threadDetailSizer.Add(self.closeButton, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 0)
         self.SetSizer(threadDetailSizer)
         threadDetailSizer.Fit(self)
         self.Layout()
@@ -80,15 +85,33 @@ class threadDetailFrame(wx.Frame):
 
     def setThreadID(self, threadID):        
         self.encoderThread = self.GetParent().threads[ threadID ] 
-        self.threadMencoderCmd.SetLabel( " ".join(self.encoderThread.mencoderCmd) )
-        self.wrapStaticTexts()
-
-    def wrapStaticTexts(self):
-        self.threadMencoderCmd.Wrap( self.GetSizeTuple()[0] )
+        self.refreshThreadInfo()
         
+    def refreshThreadInfo(self):
+        if self.encoderThread.mencoderCmd.has_key(1):
+            self.threadMencoderPass1Cmd.SetLabel( " ".join(self.encoderThread.mencoderCmd[1]) )
+
+        if self.encoderThread.mencoderCmd.has_key(2):
+            self.threadMencoderPass2Cmd.SetLabel( " ".join(self.encoderThread.mencoderCmd[2]) )
+        
+
+    def refreshLayout(self):
+        self.refreshThreadInfo() # when i dont call this bad things happen - wrap() calls seem like they can only make text wrap thinner, not wider.. 
+        width = self.GetSizeTuple()[0]
+        self.threadMencoderPass1Cmd.Wrap( width )
+        self.threadMencoderPass2Cmd.Wrap( width )
+        self.Layout()
 
     def onCloseButton(self, event): # wxGlade: threadDetailFrame.<event_handler>
         self.Destroy()
+        event.Skip()
+
+    def onRefreshButton(self, event): # wxGlade: threadDetailFrame.<event_handler>
+        self.refreshThreadInfo()
+        event.Skip()
+
+    def onResize(self, event):
+        self.refreshLayout()
         event.Skip()
 
 # end of class threadDetailFrame
@@ -805,6 +828,7 @@ class encoderQueueFrame(wx.Frame):
         for item in [ "Toggle Pause","View Details","Remove" ]:
             self.contextMenuEntriesById[ wx.NewId() ] = item
         
+        self.threadDetailFrames = {}
 
     def __set_properties(self):
         # begin wxGlade: encoderQueueFrame.__set_properties
@@ -901,7 +925,11 @@ class encoderQueueFrame(wx.Frame):
 
         self.encoderQueueListCtrl.SetStringItem(listCtrlIndex, 3, event.listMessage)
         self.resizeEncoderQueueListCtrl()
-        
+
+        # refresh any thread detail frames that are open for this thread
+        if self.threadDetailFrames.has_key( event.threadID ):
+            self.threadDetailFrames[ event.threadID ].refreshLayout()
+            
         event.Skip()
 
     def onCloseButton(self, event): # wxGlade: encoderQueueFrame.<event_handler>
@@ -942,9 +970,9 @@ class encoderQueueFrame(wx.Frame):
         
         if selectedMenuItem == "View Details":
             threadID = self.encoderQueueListCtrl.GetItemData( self.encoderQueueListCtrl.GetFirstSelected() )
-            self.threadDetailFrame = threadDetailFrame(parent=self)
-            self.threadDetailFrame.setThreadID(threadID)        
-            self.threadDetailFrame.Show()
+            self.threadDetailFrames[ threadID ] = threadDetailFrame(parent=self)
+            self.threadDetailFrames[ threadID ].setThreadID(threadID)        
+            self.threadDetailFrames[ threadID ].Show()
 
         event.Skip()
 
@@ -1002,7 +1030,7 @@ class encoderThread(threading.Thread):
         # boolean describing if two-pass is enabled ; 0 is yes
         self.twoPass = (self.prefs["twoPassVideo"] == 0)
 
-        self.mencoderCmd = []
+        self.mencoderCmd = {}
 
         # load parent constructor
         threading.Thread.__init__(self)
@@ -1038,7 +1066,14 @@ class encoderThread(threading.Thread):
             mencCount = 2
         else:
             mencCount = 1
-            
+
+
+        # loop as many times as we are supposed to start mencoder
+        # - zip through the upcoming passes and generate the mencoderCmds in advance
+        for i in range(mencCount):
+            self.currentPass = i+1
+            self.mencoderCmd[self.currentPass] = self.buildMencoderCmd()
+
         # loop as many times as we are supposed to start mencoder
         for i in range(mencCount):
             
@@ -1048,15 +1083,13 @@ class encoderThread(threading.Thread):
             if self.currentPass != 1:
                 self.startMythtranscode()
 
-            self.mencoderCmd = self.buildMencoderCmd()
-            print self.mencoderCmd
 
             self.stdoutSockMenc, stdoutChildSockMenc = socket.socketpair() 
             self.stderrSockMenc, stderrChildSockMenc = socket.socketpair() 
             self.stdoutSockMenc.settimeout(0.1)
             self.stderrSockMenc.settimeout(0.1)
 
-            self.mencoderProcess = subprocess.Popen(self.mencoderCmd, stdin=None, stdout=stdoutChildSockMenc.fileno(), stderr=stderrChildSockMenc.fileno())
+            self.mencoderProcess = subprocess.Popen(self.mencoderCmd[self.currentPass], stdin=None, stdout=stdoutChildSockMenc.fileno(), stderr=stderrChildSockMenc.fileno())
 
             self.setRunningStatus( "Encoder started." )
 
