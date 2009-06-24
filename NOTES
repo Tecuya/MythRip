@@ -12,8 +12,6 @@ todo before release:
 
   prefs dialog doesnt revert to old settings when you hit cancel
 
-  prefs can change mid-encoder thread because they are referenced via notifyWindow .. encoder thread should have its own unchangable copy of prefs
-
   when new options are added to optionMap / prefMap, they are not automatically added to the users .mythriprc file
 
   support for more than just 1 or 2 channels of audio (maybe not before release?)

@@ -23,6 +23,93 @@ import stat
 
 
 
+class threadDetailFrame(wx.Frame):
+    def __init__(self, *args, **kwds):
+        # begin wxGlade: threadDetailFrame.__init__
+        kwds["style"] = wx.DEFAULT_FRAME_STYLE
+        wx.Frame.__init__(self, *args, **kwds)
+        self.threadDetailLabel = wx.StaticText(self, -1, "Details for thread:")
+        self.threadDetailInformation = wx.StaticText(self, -1, "")
+        self.static_line_1 = wx.StaticLine(self, -1)
+        self.threadMencoderLabel = wx.StaticText(self, -1, "mencoder Pass 1 Command:")
+        self.threadMencoderCmd = wx.StaticText(self, -1, "mencoder --help -vo xv -fs -af volnorm -display :0.1 -fakeoption -example -lorum -ipsum")
+        self.static_line_2 = wx.StaticLine(self, -1)
+        self.threadMencoderPass2Label = wx.StaticText(self, -1, "mencoder Pass 2 Command:")
+        self.threadMencoderPass2Cmd = wx.StaticText(self, -1, "mencoder --help -vo xv -fs -af volnorm -display :0.1 -fakeoption -example -lorum -ipsum")
+        self.static_line_3 = wx.StaticLine(self, -1)
+        self.mencoderStdoutLabel = wx.StaticText(self, -1, "Process STDOUT:")
+        self.mencoderStdoutText = wx.TextCtrl(self, -1, "", style=wx.TE_MULTILINE)
+        self.mencoderStderrLabel = wx.StaticText(self, -1, "Process STDERR:")
+        self.mencoderStderrText = wx.TextCtrl(self, -1, "", style=wx.TE_MULTILINE)
+        self.closeButton = wx.Button(self, -1, "Close")
+
+        self.__set_properties()
+        self.__do_layout()
+
+        self.Bind(wx.EVT_BUTTON, self.onCloseButton, self.closeButton)
+        # end wxGlade
+        
+    def __set_properties(self):
+        # begin wxGlade: threadDetailFrame.__set_properties
+        pass
+        # end wxGlade
+
+    def __do_layout(self):
+        # begin wxGlade: threadDetailFrame.__do_layout
+        threadDetailSizer = wx.BoxSizer(wx.VERTICAL)
+        threadDetailInfoSizer = wx.BoxSizer(wx.HORIZONTAL)
+        threadDetailInfoSizer.Add(self.threadDetailLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        threadDetailInfoSizer.Add(self.threadDetailInformation, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        threadDetailSizer.Add(threadDetailInfoSizer, 0, 0, 0)
+        threadDetailSizer.Add(self.static_line_1, 0, wx.EXPAND, 0)
+        threadDetailSizer.Add(self.threadMencoderLabel, 0, 0, 0)
+        threadDetailSizer.Add(self.threadMencoderCmd, 0, 0, 0)
+        threadDetailSizer.Add(self.static_line_2, 0, wx.EXPAND, 0)
+        threadDetailSizer.Add(self.threadMencoderPass2Label, 0, 0, 0)
+        threadDetailSizer.Add(self.threadMencoderPass2Cmd, 0, 0, 0)
+        threadDetailSizer.Add(self.static_line_3, 0, wx.EXPAND, 0)
+        threadDetailSizer.Add(self.mencoderStdoutLabel, 0, 0, 0)
+        threadDetailSizer.Add(self.mencoderStdoutText, 0, wx.EXPAND, 0)
+        threadDetailSizer.Add(self.mencoderStderrLabel, 0, 0, 0)
+        threadDetailSizer.Add(self.mencoderStderrText, 0, wx.EXPAND, 0)
+        threadDetailSizer.Add(self.closeButton, 0, wx.ALIGN_CENTER_HORIZONTAL, 0)
+        self.SetSizer(threadDetailSizer)
+        threadDetailSizer.Fit(self)
+        self.Layout()
+        # end wxGlade
+
+    def setThreadID(self, threadID):        
+        self.encoderThread = self.GetParent().threads[ threadID ] 
+        self.threadMencoderCmd.SetLabel( " ".join(self.encoderThread.mencoderCmd) )
+        self.wrapStaticTexts()
+
+    def wrapStaticTexts(self):
+        self.threadMencoderCmd.Wrap( self.GetSizeTuple()[0] )
+        
+
+    def onCloseButton(self, event): # wxGlade: threadDetailFrame.<event_handler>
+        self.Destroy()
+        event.Skip()
+
+# end of class threadDetailFrame
+
+
+class MyFrame(wx.Frame):
+    def __init__(self, *args, **kwds):
+        # content of this block not found: did you rename this class?
+        pass
+
+    def __set_properties(self):
+        # content of this block not found: did you rename this class?
+        pass
+
+    def __do_layout(self):
+        # content of this block not found: did you rename this class?
+        pass
+
+# end of class MyFrame
+
+
 class mainFrame(wx.Frame):
     def __init__(self, *args, **kwds):
         
@@ -688,6 +775,7 @@ class encoderQueueFrame(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.onToolbarUp, id=toolbarUp)
         self.Bind(wx.EVT_TOOL, self.onToolbarDown, id=toolbarDown)
         self.Bind(wx.EVT_TOOL, self.onToolbarCleanup, id=toolbarCleanup)
+        self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.onItemRightClick, self.encoderQueueListCtrl)
         self.Bind(wx.EVT_BUTTON, self.onCloseButton, self.encoderQueueCloseButton)
         # end wxGlade
         
@@ -711,6 +799,11 @@ class encoderQueueFrame(wx.Frame):
         
         # connect up a handler to update the GUI upon events from the encoder threads
         EVT_ENCODER(self, self.onEncoderEvent)    
+
+        # prepare the right-click context menu entry definitions        
+        self.contextMenuEntriesById = {}
+        for item in [ "Toggle Pause","View Details","Remove" ]:
+            self.contextMenuEntriesById[ wx.NewId() ] = item
         
 
     def __set_properties(self):
@@ -831,6 +924,30 @@ class encoderQueueFrame(wx.Frame):
         print "Event handler `onToolbarCleanup' not implemented"
         event.Skip()
 
+    def onItemRightClick(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+        
+        menu = wx.Menu()
+
+        for (id,title) in self.contextMenuEntriesById.iteritems():
+            menu.Append(id, title)
+            wx.EVT_MENU( menu, id, self.onContextMenuSelection )
+            
+        self.PopupMenu( menu )
+
+        event.Skip()
+
+
+    def onContextMenuSelection(self, event):        
+        selectedMenuItem = self.contextMenuEntriesById[ event.GetId() ]
+        
+        if selectedMenuItem == "View Details":
+            threadID = self.encoderQueueListCtrl.GetItemData( self.encoderQueueListCtrl.GetFirstSelected() )
+            self.threadDetailFrame = threadDetailFrame(parent=self)
+            self.threadDetailFrame.setThreadID(threadID)        
+            self.threadDetailFrame.Show()
+
+        event.Skip()
+
 # end of class encoderQueueFrame
 
 ###################################################################
@@ -885,6 +1002,8 @@ class encoderThread(threading.Thread):
         # boolean describing if two-pass is enabled ; 0 is yes
         self.twoPass = (self.prefs["twoPassVideo"] == 0)
 
+        self.mencoderCmd = []
+
         # load parent constructor
         threading.Thread.__init__(self)
     
@@ -929,15 +1048,15 @@ class encoderThread(threading.Thread):
             if self.currentPass != 1:
                 self.startMythtranscode()
 
-            mencoderCmd = self.buildMencoderCmd()
-            print mencoderCmd
+            self.mencoderCmd = self.buildMencoderCmd()
+            print self.mencoderCmd
 
             self.stdoutSockMenc, stdoutChildSockMenc = socket.socketpair() 
             self.stderrSockMenc, stderrChildSockMenc = socket.socketpair() 
             self.stdoutSockMenc.settimeout(0.1)
             self.stderrSockMenc.settimeout(0.1)
 
-            self.mencoderProcess = subprocess.Popen(mencoderCmd, stdin=None, stdout=stdoutChildSockMenc.fileno(), stderr=stderrChildSockMenc.fileno())
+            self.mencoderProcess = subprocess.Popen(self.mencoderCmd, stdin=None, stdout=stdoutChildSockMenc.fileno(), stderr=stderrChildSockMenc.fileno())
 
             self.setRunningStatus( "Encoder started." )
 
@@ -1091,9 +1210,11 @@ class encoderThread(threading.Thread):
                     
                     self.setRunningStatus("0%% : Frame %d / ????: %0.02f fps" % (self.currentFrame, self.currentFPS) )
 
-                print "STDOUT %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstdout)
+                # print "STDOUT %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstdout)
+                    
             if len(newstderr):
-                print "STDERR %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstderr)
+                # print "STDERR %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstderr)
+                pass
 
 
     def buildMencoderCmd(self):
