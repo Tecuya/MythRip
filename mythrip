@@ -770,9 +770,10 @@ class encoderQueueFrame(wx.Frame):
     def __init__(self, *args, **kwds):
 
         toolbarCleanup = wx.NewId()
-        toolbarRemove = wx.NewId()
+        toolbarStop = wx.NewId()
         toolbarUp = wx.NewId()
         toolbarDown = wx.NewId()
+        toolbarPrefs = wx.NewId()
 
         # begin wxGlade: encoderQueueFrame.__init__
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
@@ -781,12 +782,14 @@ class encoderQueueFrame(wx.Frame):
         # Tool Bar
         self.encoderQueueFrameToolbar = wx.ToolBar(self, -1)
         self.SetToolBar(self.encoderQueueFrameToolbar)
-        self.encoderQueueFrameToolbar.AddLabelTool(toolbarRemove, "Remove", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-cancel.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Remove from queue", "")
+        self.encoderQueueFrameToolbar.AddLabelTool(toolbarStop, "Stop", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-cancel.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Stop Encoder Thread", "")
         self.encoderQueueFrameToolbar.AddSeparator()
         self.encoderQueueFrameToolbar.AddLabelTool(toolbarUp, "Up", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-go-up.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Move selected recording(s) up", "")
         self.encoderQueueFrameToolbar.AddLabelTool(toolbarDown, "Down", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-go-down.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Move selected recording(s) down", "")
         self.encoderQueueFrameToolbar.AddSeparator()
         self.encoderQueueFrameToolbar.AddLabelTool(toolbarCleanup, "Clean Up", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/edit-clear.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Clean Up", "")
+        self.encoderQueueFrameToolbar.AddSeparator()
+        self.encoderQueueFrameToolbar.AddLabelTool(toolbarPrefs, "Preferences", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Queue Preferences", "")
         # Tool Bar end
         self.encoderQueueListCtrl = wx.ListCtrl(self, -1, style=wx.LC_REPORT|wx.SUNKEN_BORDER)
         self.encoderQueueCloseButton = wx.Button(self, wx.ID_CLOSE, "")
@@ -794,10 +797,11 @@ class encoderQueueFrame(wx.Frame):
         self.__set_properties()
         self.__do_layout()
 
-        self.Bind(wx.EVT_TOOL, self.onToolbarRemove, id=toolbarRemove)
+        self.Bind(wx.EVT_TOOL, self.onToolbarStop, id=toolbarStop)
         self.Bind(wx.EVT_TOOL, self.onToolbarUp, id=toolbarUp)
         self.Bind(wx.EVT_TOOL, self.onToolbarDown, id=toolbarDown)
         self.Bind(wx.EVT_TOOL, self.onToolbarCleanup, id=toolbarCleanup)
+        self.Bind(wx.EVT_TOOL, self.onToolbarPrefs, id=toolbarPrefs)
         self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.onItemRightClick, self.encoderQueueListCtrl)
         self.Bind(wx.EVT_BUTTON, self.onCloseButton, self.encoderQueueCloseButton)
         # end wxGlade
@@ -829,6 +833,11 @@ class encoderQueueFrame(wx.Frame):
             self.contextMenuEntriesById[ wx.NewId() ] = item
         
         self.threadDetailFrames = {}
+        
+        # start the updater timer
+        self.encoderQueueUpdateTimer = encoderQueueUpdateTimer()
+        self.encoderQueueUpdateTimer.setFrameHandle(self)
+        self.encoderQueueUpdateTimer.Start(milliseconds=2000)
 
     def __set_properties(self):
         # begin wxGlade: encoderQueueFrame.__set_properties
@@ -859,7 +868,6 @@ class encoderQueueFrame(wx.Frame):
         
         # create the thread.  
         self.threads[threadID] = encoderThread(program, threadID, self)
-        self.threads[threadID].start()
         
         # determine the number of items in the control and add in the next available slot
         newListIndex = self.encoderQueueListCtrl.GetItemCount()
@@ -868,7 +876,7 @@ class encoderQueueFrame(wx.Frame):
         self.encoderQueueListCtrl.InsertStringItem(newListIndex, program.title)
         self.encoderQueueListCtrl.SetStringItem(newListIndex, 1, program.subtitle)
         self.encoderQueueListCtrl.SetStringItem(newListIndex, 2, str(program.starttime))
-        self.encoderQueueListCtrl.SetStringItem(newListIndex, 3, 'Initializing...')
+        self.encoderQueueListCtrl.SetStringItem(newListIndex, 3, 'Waiting')
         self.encoderQueueListCtrl.SetItemData(newListIndex, threadID) # store the thread id with each item
 
         # keep the table clean with some column resizing
@@ -901,7 +909,34 @@ class encoderQueueFrame(wx.Frame):
 
     ##########################################################################################
     # event handlers
+        
+    def onTimerTick(self):
 
+        # this is where the encoder queue determines when it needs to start more encoders
+
+        while True:
+        
+            pendingThreads = []
+
+            threadCount = len(self.threads)
+            runningThreads = 0
+            for threadID,encoderThread in self.threads.iteritems():
+
+                # count how many threads are running now
+                if encoderThread.state == "running":
+                    runningThreads += 1  
+
+                # make a list of threads that are waiting to start
+                elif encoderThread.state == "new":
+                    pendingThreads.append( encoderThread )
+
+            # if there are less threads running than the threadCount, then start some until thats no longer true    
+            if runningThreads < self.prefs['threadCount'] and len(pendingThreads):
+                pendingThreads[0].start()
+            else:
+                # the only way out of the while True is for there to be no more threads that need starting
+                break
+                    
 
     # when an encoder event is received this is called
     def onEncoderEvent(self, event):
@@ -936,11 +971,14 @@ class encoderQueueFrame(wx.Frame):
         self.Hide()
         event.Skip()
 
-    def onToolbarRemove(self, event): # wxGlade: encoderQueueFrame.<event_handler>
-        print "Event handler `onToolbarRemove' not implemented"
-        event.Skip()
-
     def onToolbarUp(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+
+        item = self.encoderQueueListCtrl.GetFirstSelected()
+        while item != -1:
+            threadID = self.encoderQueueListCtrl.GetItemData(item)
+            oldListPos = self.encoderQueueListCtrl.GetItemPosition( self.encoderQueueListCtrl.GetFirstSelected() )
+            newListPost = oldListPos - 1
+            
         print "Event handler `onToolbarUp' not implemented"
         event.Skip()
 
@@ -976,6 +1014,19 @@ class encoderQueueFrame(wx.Frame):
 
         event.Skip()
 
+    def onToolbarPrefs(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+        self.GetParent().preferencesFrame.Show()
+        self.GetParent().preferencesFrame.preferencesNotebook.ChangeSelection(2)
+        event.Skip()
+
+    def onToolbarStop(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+        item = self.encoderQueueListCtrl.GetFirstSelected()
+        while item != -1:
+            threadID = self.encoderQueueListCtrl.GetItemData(item)
+            self.threads[ threadID ].setCommand("abort")
+            item = self.encoderQueueListCtrl.GetNextSelected(item)
+        event.Skip()
+
 # end of class encoderQueueFrame
 
 ###################################################################
@@ -1006,6 +1057,8 @@ class encoderThread(threading.Thread):
         self.program = program
         self.threadID = threadID
         self.doCommand = ""
+        
+        self.state = "new"
 
         self.mythTranscodeProcess = False
         self.mythTranscodeStdout = ""
@@ -1038,7 +1091,8 @@ class encoderThread(threading.Thread):
         
     def run(self):
 
-        
+        self.state = "running"
+
         print "Thread ID %d : %s" % (self.threadID, self.program)
         
         self.startMythtranscode()
@@ -1154,17 +1208,25 @@ class encoderThread(threading.Thread):
                     break 
                 
 
-
                 # check for the abort command and if its there then bail!
                 if self.doCommand == "abort":
                     self.setRunningStatus( "Aborted by user" )
                     self.endThread("abort","Thread aborted.") # die!
 
+                if self.doCommand == "pause":
+                    self.state = "paused"
+                    pass
+
+                if self.doCommand == "resume":
+                    self.state = "running"
+                    pass
+                
+
                 # wait a second before checking the subprocess again
                 time.sleep(0.1)
 
         self.sendEncoderEvent( "stopped", "Completed" )
-
+        self.state = "completed"
 
     def clearFifoDir(self):
         print "clearFifoDir"
@@ -1410,7 +1472,7 @@ class encoderThread(threading.Thread):
 
     # func called by the main thread in order to issue commands
     def setCommand(self,command):
-        self.doCommand = setCommand
+        self.doCommand = command
 
     def endThread(self,threadState,listMessage):
 
@@ -1430,6 +1492,14 @@ class encoderThread(threading.Thread):
         return os.access(fn,os.R_OK) and stat.S_ISFIFO(os.stat(fn).st_mode)
 
     
+# a very simple timer to call a tick function in the encoder queue fraem
+class encoderQueueUpdateTimer(wx.Timer):
+    
+    def setFrameHandle(self,encoderQueueFrame):
+        self.encoderQueueFrame = encoderQueueFrame
+
+    def Notify(self):
+        self.encoderQueueFrame.onTimerTick()
 
 ###########################################################################
     
