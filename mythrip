@@ -13,7 +13,7 @@ import threading
 import subprocess
 import socket
 import re
-import time   # for debugging only so far
+import time 
 import signal
 import stat
 
@@ -1004,7 +1004,7 @@ class encoderQueueFrame(wx.Frame):
     # when an encoder event is received this is called
     def onEncoderEvent(self, event):
 
-        print "Thread %d state %s : %s" % (event.threadID, event.threadState, event.listMessage)
+        # print "Thread %d state %s : %s" % (event.threadID, event.threadState, event.listMessage)
         
         # we pretty much need this no matter what
         listCtrlIndex = self.encoderQueueListCtrl.FindItemData(0,event.threadID)
@@ -1049,7 +1049,19 @@ class encoderQueueFrame(wx.Frame):
         event.Skip()
 
     def onToolbarCleanup(self, event): # wxGlade: encoderQueueFrame.<event_handler>
-        print "Event handler `onToolbarCleanup' not implemented"
+
+        for idx in range(len(self.threadOrder)):
+
+            threadID = self.threadOrder[idx]
+
+            if self.threads[threadID].state in ("aborted","completed"):
+                
+                # bye!
+                del self.threads[ threadID ]
+                del self.threadOrder[idx]
+                
+        self.onThreadPoolChange()
+
         event.Skip()
 
     def onItemRightClick(self, event): # wxGlade: encoderQueueFrame.<event_handler>
@@ -1224,7 +1236,7 @@ class encoderThread(threading.Thread):
             stopRunning = False
             while not stopRunning:
 
-                print "encoder thread heartbeat"
+                # print "encoder thread heartbeat"
 
                 self.parseSubprocessOutput()
                 
@@ -1307,7 +1319,9 @@ class encoderThread(threading.Thread):
                 try:
                     shutil.rmtree(self.mythTranscodeFifoDir)
                 except Exception, e:
-                    self.endThread("failed","Could not remove stale fifo directory: %s" % e)
+                    self.sendEncoderEvent("failed","Could not remove stale fifo directory: %s" % e)
+                    self.state = "aborted"
+                    sys.exit() # ??
             else:
                 break
 
@@ -1316,7 +1330,9 @@ class encoderThread(threading.Thread):
         try:
             os.mkdir(self.mythTranscodeFifoDir)
         except Exception, e:
-            self.endThread("failed","Failed creating fifo directories: %s" % e)
+            self.sendEncoderEvent("failed","Failed creating fifo directories: %s" % e)
+            self.state = "aborted"
+            sys.exit() # ??
 
 
     def parseSubprocessOutput(self,mtGathering = False):
@@ -1538,17 +1554,6 @@ class encoderThread(threading.Thread):
     def setCommand(self,command):
         self.doCommand = command
 
-    def endThread(self,threadState,listMessage):
-        
-        # i'm hoping this kills the subprocess... if not i might just use process.pid to kill it
-        del self.mythTranscodeProcess
-
-        # the last thing the thread does is tell the main thread its terminating, and thats a rule
-        self.sendEncoderEvent( threadState, listMessage )
-        
-        # die!
-        sys.exit()
-        
     def sendEncoderEvent(self, threadState, listMessage):
         self.lastListMessage = listMessage
         wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID, threadState, listMessage))
