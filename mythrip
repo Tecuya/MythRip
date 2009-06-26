@@ -936,6 +936,30 @@ class encoderQueueFrame(wx.Frame):
         # now that we are done re-ordering, redraw the threads
         self.onThreadPoolChange(selThreads)
 
+
+    def removeCompletedItems(self):
+        # lists to hold indexes to be deleted from self.threads & self.threadOrder
+        nukeThreads = []
+        nukeThreadOrder = []
+
+        for idx in range(len(self.threadOrder)):
+            threadID = self.threadOrder[idx]
+
+            if self.threads[threadID].state in ("aborted","completed"):
+                
+                nukeThreads.append(threadID)
+                nukeThreadOrder.append(idx)
+        
+        for idx in nukeThreadOrder:
+            del self.threadOrder[ idx ]
+            
+        for threadID in nukeThreads:
+            del self.threads[ threadID ]
+
+        if (len(nukeThreadOrder) + len(nukeThreads)) > 0:
+            self.onThreadPoolChange()
+
+
     ##########################################################################################
     # event handlers
 
@@ -972,7 +996,7 @@ class encoderQueueFrame(wx.Frame):
         
         # 0 is yes
         if self.prefs['removeCompleted'] == 0: 
-            self.onToolbarCleanup
+            self.removeCompletedItems()
 
         # this is where the encoder queue determines when it needs to start more encoders
         while True:
@@ -1053,26 +1077,7 @@ class encoderQueueFrame(wx.Frame):
 
     def onToolbarCleanup(self, event): # wxGlade: encoderQueueFrame.<event_handler>
         
-        # lists to hold indexes to be deleted from self.threads & self.threadOrder
-        nukeThreads = []
-        nukeThreadOrder = []
-
-        for idx in range(len(self.threadOrder)):
-            threadID = self.threadOrder[idx]
-
-            if self.threads[threadID].state in ("aborted","completed"):
-                
-                nukeThreads.append(threadID)
-                nukeThreadOrder.append(idx)
-        
-        for idx in nukeThreadOrder:
-            del self.threadOrder[ idx ]
-            
-        for threadID in nukeThreads:
-            del self.threads[ threadID ]
-
-        if (len(nukeThreadOrder) + len(nukeThreads)) > 0:
-            self.onThreadPoolChange()
+        self.removeCompletedItems()
 
         event.Skip()
 
