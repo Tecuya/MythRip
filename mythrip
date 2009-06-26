@@ -862,9 +862,6 @@ class encoderQueueFrame(wx.Frame):
         self.threads[threadID] = encoderThread(program, threadID, self)
         self.threadOrder.append(threadID)
         
-        # determine the number of items in the control and add in the next available slot
-        newListIndex = self.encoderQueueListCtrl.GetItemCount()
-
         self.onThreadPoolChange()
 
     def getSelectedEncoders(self):
