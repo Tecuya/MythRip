@@ -30,24 +30,18 @@ class threadDetailFrame(wx.Frame):
         wx.Frame.__init__(self, *args, **kwds)
         self.threadDetailLabel = wx.StaticText(self, -1, "Details for thread:")
         self.threadDetailInformation = wx.StaticText(self, -1, "")
-        self.refreshButton = wx.Button(self, -1, "Refresh")
         self.static_line_1 = wx.StaticLine(self, -1)
         self.threadMencoderPass1Label = wx.StaticText(self, -1, "mencoder Pass 1 Command:")
-        self.threadMencoderPass1Cmd = wx.StaticText(self, -1, "mencoder --help -vo xv -fs -af volnorm -display :0.1 -fakeoption -example -lorum -ipsum")
+        self.threadMencoderPass1Cmd = wx.StaticText(self, -1, "[ Waiting.. ]")
         self.static_line_2 = wx.StaticLine(self, -1)
         self.threadMencoderPass2Label = wx.StaticText(self, -1, "mencoder Pass 2 Command:")
-        self.threadMencoderPass2Cmd = wx.StaticText(self, -1, "mencoder --help -vo xv -fs -af volnorm -display :0.1 -fakeoption -example -lorum -ipsum")
+        self.threadMencoderPass2Cmd = wx.StaticText(self, -1, "[ Waiting.. ]")
         self.static_line_3 = wx.StaticLine(self, -1)
-        self.mencoderStdoutLabel = wx.StaticText(self, -1, "Process STDOUT:")
-        self.mencoderStdoutText = wx.TextCtrl(self, -1, "", style=wx.TE_MULTILINE)
-        self.mencoderStderrLabel = wx.StaticText(self, -1, "Process STDERR:")
-        self.mencoderStderrText = wx.TextCtrl(self, -1, "", style=wx.TE_MULTILINE)
         self.closeButton = wx.Button(self, -1, "Close")
 
         self.__set_properties()
         self.__do_layout()
 
-        self.Bind(wx.EVT_BUTTON, self.onRefreshButton, self.refreshButton)
         self.Bind(wx.EVT_BUTTON, self.onCloseButton, self.closeButton)
         # end wxGlade
         
@@ -56,6 +50,7 @@ class threadDetailFrame(wx.Frame):
     def __set_properties(self):
         # begin wxGlade: threadDetailFrame.__set_properties
         self.SetTitle("Thread Details")
+        self.SetSize((578, 335))
         # end wxGlade
 
     def __do_layout(self):
@@ -64,7 +59,6 @@ class threadDetailFrame(wx.Frame):
         threadDetailInfoSizer = wx.BoxSizer(wx.HORIZONTAL)
         threadDetailInfoSizer.Add(self.threadDetailLabel, 0, wx.ALIGN_CENTER_VERTICAL, 0)
         threadDetailInfoSizer.Add(self.threadDetailInformation, 0, wx.ALIGN_CENTER_VERTICAL, 0)
-        threadDetailInfoSizer.Add(self.refreshButton, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         threadDetailSizer.Add(threadDetailInfoSizer, 0, wx.EXPAND, 0)
         threadDetailSizer.Add(self.static_line_1, 0, wx.EXPAND, 0)
         threadDetailSizer.Add(self.threadMencoderPass1Label, 0, 0, 0)
@@ -73,13 +67,8 @@ class threadDetailFrame(wx.Frame):
         threadDetailSizer.Add(self.threadMencoderPass2Label, 0, 0, 0)
         threadDetailSizer.Add(self.threadMencoderPass2Cmd, 0, 0, 0)
         threadDetailSizer.Add(self.static_line_3, 0, wx.EXPAND, 0)
-        threadDetailSizer.Add(self.mencoderStdoutLabel, 0, 0, 0)
-        threadDetailSizer.Add(self.mencoderStdoutText, 0, wx.EXPAND, 0)
-        threadDetailSizer.Add(self.mencoderStderrLabel, 0, 0, 0)
-        threadDetailSizer.Add(self.mencoderStderrText, 0, wx.EXPAND, 0)
         threadDetailSizer.Add(self.closeButton, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 0)
         self.SetSizer(threadDetailSizer)
-        threadDetailSizer.Fit(self)
         self.Layout()
         # end wxGlade
 
@@ -872,16 +861,8 @@ class encoderQueueFrame(wx.Frame):
         # determine the number of items in the control and add in the next available slot
         newListIndex = self.encoderQueueListCtrl.GetItemCount()
 
-        # insert the new list ctrl item
-        self.encoderQueueListCtrl.InsertStringItem(newListIndex, program.title)
-        self.encoderQueueListCtrl.SetStringItem(newListIndex, 1, program.subtitle)
-        self.encoderQueueListCtrl.SetStringItem(newListIndex, 2, str(program.starttime))
-        self.encoderQueueListCtrl.SetStringItem(newListIndex, 3, 'Waiting')
-        self.encoderQueueListCtrl.SetItemData(newListIndex, threadID) # store the thread id with each item
+        self.onThreadPoolChange()
 
-        # keep the table clean with some column resizing
-        self.resizeEncoderQueueListCtrl()
-        
     def getSelectedEncoders(self):
         
         # iterate through items in the list control, reconcile them to program objects, form a list, return it
@@ -906,10 +887,34 @@ class encoderQueueFrame(wx.Frame):
         print "encoder queue frame received new prefs"
         self.prefs = prefs
 
+        
+        
 
     ##########################################################################################
     # event handlers
+
+    # called by hand any time the threads list is added from, subtracted to, or re-ordered
+    def onThreadPoolChange(self):
         
+        self.encoderQueueListCtrl.DeleteAllItems()
+
+        for threadID, encoderThread in self.threads.iteritems():
+            
+            newListIndex = self.encoderQueueListCtrl.GetItemCount()
+
+            # insert the new list ctrl item
+            self.encoderQueueListCtrl.InsertStringItem(newListIndex, encoderThread.program.title)
+            self.encoderQueueListCtrl.SetStringItem(newListIndex, 1, encoderThread.program.subtitle)
+            self.encoderQueueListCtrl.SetStringItem(newListIndex, 2, str(encoderThread.program.starttime))
+            self.encoderQueueListCtrl.SetStringItem(newListIndex, 3, '')
+            self.encoderQueueListCtrl.SetItemData(newListIndex, threadID) # store the thread id with each item
+
+            
+        # keep the table clean with some column resizing
+        self.resizeEncoderQueueListCtrl()
+
+
+    # called from the encoderQueueUpdateTimer
     def onTimerTick(self):
 
         # this is where the encoder queue determines when it needs to start more encoders
@@ -963,7 +968,12 @@ class encoderQueueFrame(wx.Frame):
 
         # refresh any thread detail frames that are open for this thread
         if self.threadDetailFrames.has_key( event.threadID ):
-            self.threadDetailFrames[ event.threadID ].refreshLayout()
+            try:
+                self.threadDetailFrames[ event.threadID ].refreshLayout()
+                
+            except wx.PyDeadObjectError: # can't do this in C++ heh
+                print "deleting thread reference to detail frame"
+                del self.threadDetailFrames[ event.threadID ]
             
         event.Skip()
 
