@@ -803,7 +803,10 @@ class encoderQueueFrame(wx.Frame):
 
         # this variable contains a list of encoder jobs, including their thread handles
         self.threads = {}
-        
+
+        # this tracks the order in which the threads appear in the listctrl
+        self.threadOrder = []
+
         # this holds our app preferences
         self.prefs = {}
 
@@ -857,6 +860,8 @@ class encoderQueueFrame(wx.Frame):
         
         # create the thread.  
         self.threads[threadID] = encoderThread(program, threadID, self)
+
+        self.threadOrder.append(threadID)
         
         # determine the number of items in the control and add in the next available slot
         newListIndex = self.encoderQueueListCtrl.GetItemCount()
@@ -886,29 +891,78 @@ class encoderQueueFrame(wx.Frame):
     def setPreferences(self, prefs):
         print "encoder queue frame received new prefs"
         self.prefs = prefs
+        
+    def reorderThreads(self, direction):
 
-        
-        
+        # make a list of selected threads so we can restore it after we redraw the listctrl
+        selThreads = []
+
+        item = self.encoderQueueListCtrl.GetFirstSelected()
+        while item != -1:
+
+            selThreadID = self.encoderQueueListCtrl.GetItemData(item)
+
+            selThreads.append(selThreadID)
+            
+            # make a copy of threadOrder for us to mutilate
+            newThreadOrder = self.threadOrder
+
+            # loop through threadOrder indexes
+            idx=0
+            maxIdx = len(self.threadOrder)
+            for idx in range(maxIdx):
+                                
+                if selThreadID == self.threadOrder[idx]:
+                    
+                    if direction == "up" and idx > 0:
+                        # swap entries up
+                        tmpThread = newThreadOrder[idx-1] 
+                        newThreadOrder[idx-1] = newThreadOrder[idx]
+                        newThreadOrder[idx] = tmpThread
+                        break
+
+                    elif direction == "down" and idx+1 < maxIdx:
+                        # swap entries down
+                        tmpThread = newThreadOrder[idx+1]
+                        newThreadOrder[idx+1] = newThreadOrder[idx]
+                        newThreadOrder[idx] = tmpThread
+                        break
+
+                idx += 1
+
+            self.threadOrder = newThreadOrder
+
+            item = self.encoderQueueListCtrl.GetNextSelected(item)
+
+        # now that we are done re-ordering, redraw the threads
+        self.onThreadPoolChange(selThreads)
 
     ##########################################################################################
     # event handlers
 
     # called by hand any time the threads list is added from, subtracted to, or re-ordered
-    def onThreadPoolChange(self):
+    def onThreadPoolChange(self,selectedThreads = []):
         
         self.encoderQueueListCtrl.DeleteAllItems()
 
-        for threadID, encoderThread in self.threads.iteritems():
-            
+        for threadID in self.threadOrder:
+
+            # for threadID, encoderThread in self.threads.iteritems():            
             newListIndex = self.encoderQueueListCtrl.GetItemCount()
 
+            program = self.threads[threadID].program
+
             # insert the new list ctrl item
-            self.encoderQueueListCtrl.InsertStringItem(newListIndex, encoderThread.program.title)
-            self.encoderQueueListCtrl.SetStringItem(newListIndex, 1, encoderThread.program.subtitle)
-            self.encoderQueueListCtrl.SetStringItem(newListIndex, 2, str(encoderThread.program.starttime))
-            self.encoderQueueListCtrl.SetStringItem(newListIndex, 3, '')
+            self.encoderQueueListCtrl.InsertStringItem(newListIndex, program.title)
+            self.encoderQueueListCtrl.SetStringItem(newListIndex, 1, program.subtitle)
+            self.encoderQueueListCtrl.SetStringItem(newListIndex, 2, str(program.starttime))
+            self.encoderQueueListCtrl.SetStringItem(newListIndex, 3, self.threads[threadID].lastListMessage)
             self.encoderQueueListCtrl.SetItemData(newListIndex, threadID) # store the thread id with each item
 
+            # restore the user's selection
+            if threadID in selectedThreads:
+                item = self.encoderQueueListCtrl.FindItemData(0, threadID)
+                self.encoderQueueListCtrl.SetItemState( item, state=wx.LIST_STATE_SELECTED, stateMask=wx.LIST_STATE_SELECTED)
             
         # keep the table clean with some column resizing
         self.resizeEncoderQueueListCtrl()
@@ -923,9 +977,13 @@ class encoderQueueFrame(wx.Frame):
         
             pendingThreads = []
 
-            threadCount = len(self.threads)
+            threadCount = len(self.threadOrder)
+
             runningThreads = 0
-            for threadID,encoderThread in self.threads.iteritems():
+
+            for threadID in self.threadOrder:
+
+                encoderThread = self.threads[threadID]
 
                 # count how many threads are running now
                 if encoderThread.state == "running":
@@ -964,6 +1022,7 @@ class encoderQueueFrame(wx.Frame):
             
 
         self.encoderQueueListCtrl.SetStringItem(listCtrlIndex, 3, event.listMessage)
+
         self.resizeEncoderQueueListCtrl()
 
         # refresh any thread detail frames that are open for this thread
@@ -982,34 +1041,11 @@ class encoderQueueFrame(wx.Frame):
         event.Skip()
 
     def onToolbarUp(self, event): # wxGlade: encoderQueueFrame.<event_handler>
-        
-        item = self.encoderQueueListCtrl.GetFirstSelected()
-        while item != -1:
-
-            selThreadID = self.encoderQueueListCtrl.GetItemData(item)
-            
-            newThreadOrder = []
-            for threadID in self.threads.keys():
-
-                if selThreadID == threadID:
-                    setNext = threadID
-                else:
-                    setAfterNext = threadID
-                        
-                if setNext:
-                    newThreadOrder.append(setNext)
-                
-                if setAfterNext:
-                    newThreadOrder.append(setAfterNext)
-
-            print "New thread order ",newThreadOrder
-
-            item = self.encoderQueueListCtrl.GetNextSelected()
-            
+        self.reorderThreads("up")
         event.Skip()
 
     def onToolbarDown(self, event): # wxGlade: encoderQueueFrame.<event_handler>
-        print "Event handler `onToolbarDown' not implemented"
+        self.reorderThreads("down")
         event.Skip()
 
     def onToolbarCleanup(self, event): # wxGlade: encoderQueueFrame.<event_handler>
@@ -1049,7 +1085,11 @@ class encoderQueueFrame(wx.Frame):
         item = self.encoderQueueListCtrl.GetFirstSelected()
         while item != -1:
             threadID = self.encoderQueueListCtrl.GetItemData(item)
-            self.threads[ threadID ].setCommand("abort")
+
+            # abort if its running (dont set abort flag on waiting threads)
+            if self.threads[ threadID ].state == "running":
+                self.threads[ threadID ].setCommand("abort")
+
             item = self.encoderQueueListCtrl.GetNextSelected(item)
         event.Skip()
 
@@ -1085,6 +1125,8 @@ class encoderThread(threading.Thread):
         self.doCommand = ""
         
         self.state = "new"
+        
+        self.lastListMessage = "Waiting"
 
         self.mythTranscodeProcess = False
         self.mythTranscodeStdout = ""
@@ -1156,8 +1198,14 @@ class encoderThread(threading.Thread):
 
         # loop as many times as we are supposed to start mencoder
         for i in range(mencCount):
-            
+
             self.currentPass = i+1
+
+            # if we were told to abort, escape the loop
+            if self.doCommand == "abort":
+                print "aborting pass %d" % self.currentPass
+                break
+
 
             # if this isnt the first loop, we can't count on mythtranscode being started!  we need to start a new one for subsequent passes
             if self.currentPass != 1:
@@ -1173,7 +1221,8 @@ class encoderThread(threading.Thread):
 
             self.setRunningStatus( "Encoder started." )
 
-            while True:
+            stopRunning = False
+            while not stopRunning:
 
                 print "encoder thread heartbeat"
 
@@ -1183,8 +1232,10 @@ class encoderThread(threading.Thread):
                 mythTranscodeRunning = (self.mythTranscodeProcess.poll() == None)
                 mencoderRunning = (self.mencoderProcess.poll() == None)
 
-                # if they arent both running
-                if not ( mythTranscodeRunning and mencoderRunning ):
+                # end the pass if mythtranscode and mencoder are not both running, or if we've been told to abort
+                endPass = (not ( mythTranscodeRunning and mencoderRunning ) ) or self.doCommand == "abort"
+
+                if endPass:
 
                     self.setRunningStatus( "Waiting for all subprocesses to end" )
 
@@ -1199,6 +1250,7 @@ class encoderThread(threading.Thread):
                         
                         if not mythTranscodeRunning and not mencoderRunning:
                             print "all subprocesses dead"
+                            stopRunning = True
                             break
 
                         if sec > 3:
@@ -1227,32 +1279,18 @@ class encoderThread(threading.Thread):
                         # wait a second.. both processes should be disolving more or less simultaneously
                         time.sleep(1);
 
-
+                    # parse subprocess output one last time
                     self.parseSubprocessOutput()
-
-                    # proceed to next pass or to termination or whatever
-                    break 
                 
-
-                # check for the abort command and if its there then bail!
-                if self.doCommand == "abort":
-                    self.setRunningStatus( "Aborted by user" )
-                    self.endThread("abort","Thread aborted.") # die!
-
-                if self.doCommand == "pause":
-                    self.state = "paused"
-                    pass
-
-                if self.doCommand == "resume":
-                    self.state = "running"
-                    pass
-                
-
                 # wait a second before checking the subprocess again
                 time.sleep(0.1)
 
-        self.sendEncoderEvent( "stopped", "Completed" )
-        self.state = "completed"
+        if self.doCommand == "abort":
+            self.sendEncoderEvent( "stopped", "Aborted" )
+            self.state = "aborted"
+        else:
+            self.sendEncoderEvent( "stopped", "Completed" )
+            self.state = "completed"
 
     def clearFifoDir(self):
         print "clearFifoDir"
@@ -1501,7 +1539,7 @@ class encoderThread(threading.Thread):
         self.doCommand = command
 
     def endThread(self,threadState,listMessage):
-
+        
         # i'm hoping this kills the subprocess... if not i might just use process.pid to kill it
         del self.mythTranscodeProcess
 
@@ -1512,6 +1550,7 @@ class encoderThread(threading.Thread):
         sys.exit()
         
     def sendEncoderEvent(self, threadState, listMessage):
+        self.lastListMessage = listMessage
         wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID, threadState, listMessage))
         
     def isFifo(self,fn):
