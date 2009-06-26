@@ -982,14 +982,30 @@ class encoderQueueFrame(wx.Frame):
         event.Skip()
 
     def onToolbarUp(self, event): # wxGlade: encoderQueueFrame.<event_handler>
-
+        
         item = self.encoderQueueListCtrl.GetFirstSelected()
         while item != -1:
-            threadID = self.encoderQueueListCtrl.GetItemData(item)
-            oldListPos = self.encoderQueueListCtrl.GetItemPosition( self.encoderQueueListCtrl.GetFirstSelected() )
-            newListPost = oldListPos - 1
+
+            selThreadID = self.encoderQueueListCtrl.GetItemData(item)
             
-        print "Event handler `onToolbarUp' not implemented"
+            newThreadOrder = []
+            for threadID in self.threads.keys():
+
+                if selThreadID == threadID:
+                    setNext = threadID
+                else:
+                    setAfterNext = threadID
+                        
+                if setNext:
+                    newThreadOrder.append(setNext)
+                
+                if setAfterNext:
+                    newThreadOrder.append(setAfterNext)
+
+            print "New thread order ",newThreadOrder
+
+            item = self.encoderQueueListCtrl.GetNextSelected()
+            
         event.Skip()
 
     def onToolbarDown(self, event): # wxGlade: encoderQueueFrame.<event_handler>
