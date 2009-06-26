@@ -860,7 +860,6 @@ class encoderQueueFrame(wx.Frame):
         
         # create the thread.  
         self.threads[threadID] = encoderThread(program, threadID, self)
-
         self.threadOrder.append(threadID)
         
         # determine the number of items in the control and add in the next available slot
@@ -1016,10 +1015,11 @@ class encoderQueueFrame(wx.Frame):
             
             del self.threads[event.threadID]
             
-            print "- Thread %d is at position %d in the list ctrl, removing it" % (event.threadID,listCtrlIndex)
-            
-            self.encoderQueueListCtrl.DeleteItem(listCtrlIndex)
-            
+            # find the threadOrder item and delete it as well
+            for idx in range(len(self.threadOrder)):
+                if self.threadOrder[idx] == event.threadID:
+                    del self.threadOrder[idx]
+                    break                        
 
         self.encoderQueueListCtrl.SetStringItem(listCtrlIndex, 3, event.listMessage)
 
@@ -1049,18 +1049,27 @@ class encoderQueueFrame(wx.Frame):
         event.Skip()
 
     def onToolbarCleanup(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+        
+        # lists to hold indexes to be deleted from self.threads & self.threadOrder
+        nukeThreads = []
+        nukeThreadOrder = []
 
         for idx in range(len(self.threadOrder)):
-
             threadID = self.threadOrder[idx]
 
             if self.threads[threadID].state in ("aborted","completed"):
                 
-                # bye!
-                del self.threads[ threadID ]
-                del self.threadOrder[idx]
-                
-        self.onThreadPoolChange()
+                nukeThreads.append(threadID)
+                nukeThreadOrder.append(idx)
+        
+        for idx in nukeThreadOrder:
+            del self.threadOrder[ idx ]
+            
+        for threadID in nukeThreads:
+            del self.threads[ threadID ]
+
+        if (len(nukeThreadOrder) + len(nukeThreads)) > 0:
+            self.onThreadPoolChange()
 
         event.Skip()
 
