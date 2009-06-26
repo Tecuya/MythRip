@@ -229,7 +229,7 @@ class mainFrame(wx.Frame):
                            { 'short': '-A', 'long': '--audiocodecopts', 'action': 'store', 'dest': 'audioCodecOptions', 'default': '', 'help' : 'Audio Codec Option String' },
                            { 'short': '-F', 'long': '--audiofilter', 'action': 'store', 'dest': 'audioFilter', 'default': '', 'help' : 'Audio Filter String' },
                            { 'short': '-t', 'long': '--threadcount', 'action': 'store', 'dest': 'threadCount', 'default': '2', 'help' : 'Max Simultaneous Encoding Jobs' },
-                           { 'short': '-r', 'long': '--removecompleted', 'action': 'store', 'dest': 'removeCompleted', 'default': '0', 'help' : 'Remove Completed Job Choice Index' },                       
+                           { 'short': '-r', 'long': '--removecompleted', 'action': 'store', 'dest': 'removeCompleted', 'default': '1', 'help' : 'Remove Completed Job Choice Index' },                       
                            { 'short': '-s', 'long': '--savepath', 'action': 'store', 'dest': 'savePath', 'default': os.path.expanduser('~/Desktop'), 'help' : 'Save Encodings to Path' }, 
                            { 'short': '-x', 'long': '--filetemplate', 'action': 'store', 'dest': 'fileTemplate', 'default': '%s - %t.%x', 'help' : 'Output File Naming Template' }
                            )
@@ -969,9 +969,12 @@ class encoderQueueFrame(wx.Frame):
 
     # called from the encoderQueueUpdateTimer
     def onTimerTick(self):
+        
+        # 0 is yes
+        if self.prefs['removeCompleted'] == 0: 
+            self.onToolbarCleanup
 
         # this is where the encoder queue determines when it needs to start more encoders
-
         while True:
         
             pendingThreads = []
