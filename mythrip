@@ -730,7 +730,7 @@ class mainFrame(wx.Frame):
         filename = os.path.join(self.prefs['mythtvRecordingPath'], program.filename.split('/')[3:][0]) 
 
         if os.access(filename, os.R_OK):
-            cmd = [ 'mplayer', os.path.join(self.prefs['mythtvRecordingPath'], program.filename.split('/')[3:][0]) ]
+            cmd = [ self.prefs['playerPath'], os.path.join(self.prefs['mythtvRecordingPath'], program.filename.split('/')[3:][0]) ]
             subprocess.call(cmd)
         else:
             wxmessage = wx.MessageDialog(parent=self, caption="MythRip - Playback Error", message="Could not access file:\n\n%s\n\nCheck 'MythTV Recording Path' in preferences" % filename)
@@ -1447,7 +1447,8 @@ class encoderThread(threading.Thread):
         print "loaded prefs",self.prefs
 
         # now fire up mencoder reading from mythtranscode's fifo
-        mencoderCmd = ['/usr/bin/mencoder','-noskip','-idx',
+        mencoderCmd = [self.prefs['mencoderPath'],
+                       '-noskip','-idx',
                        os.path.join(self.mythTranscodeFifoDir, 'vidout'),
                        '-audiofile', os.path.join(self.mythTranscodeFifoDir,'audout'),
                        '-demuxer','20','-audio-demuxer','20',
@@ -1522,7 +1523,7 @@ class encoderThread(threading.Thread):
         print "Starting mythtranscode!"
 
         # fire up mythtranscode turbo=1:subq=1:frameref=1
-        mythTranscodeCmd = ['/usr/bin/mythtranscode',
+        mythTranscodeCmd = [self.prefs['mythtranscodePath'],
                             '--showprogress',
                             '-p','autodetect',
                             '-c',str(self.program.chanid),
