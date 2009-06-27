@@ -319,7 +319,10 @@ class Program:
 		self.storagegroup = data[42]
 		self.audio_props = data[43]
 		self.video_props = data[44]
-		
+
+		# save the data, as it's useful in DELETE_RECORDINGS queries
+		self.data = data
+
 		#  I commented these because my backend does not seem to return this many records.. fixme
 		#		self.subtitle_type = data[45]
 		#		self.year = data[46]

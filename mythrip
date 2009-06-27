@@ -81,8 +81,7 @@ class threadDetailFrame(wx.Frame):
             self.threadMencoderPass1Cmd.SetLabel( " ".join(self.encoderThread.mencoderCmd[1]) )
 
         if self.encoderThread.mencoderCmd.has_key(2):
-            self.threadMencoderPass2Cmd.SetLabel( " ".join(self.encoderThread.mencoderCmd[2]) )
-        
+            self.threadMencoderPass2Cmd.SetLabel( " ".join(self.encoderThread.mencoderCmd[2]) )        
 
     def refreshLayout(self):
         self.refreshThreadInfo() # when i dont call this bad things happen - wrap() calls seem like they can only make text wrap thinner, not wider.. 
@@ -654,7 +653,37 @@ class mainFrame(wx.Frame):
         event.Skip()
 
     def onToolbarDelete(self, event): # wxGlade: mainFrame.<event_handler>
-        print "Event handler `onToolbarDelete' not implemented"
+
+        progList = self.getSelectedPrograms()
+
+        progCount = len(progList)
+
+        if progCount:
+
+            if progCount == 1:
+                message = "Really delete show '%s'?" % progList[0]
+            else:
+                message = "Really delete %d shows?" % progCount
+
+            wxmessage = wx.MessageDialog(parent=self, message=message, caption="MythRip - Confirm Delete", style=wx.YES_NO|wx.YES_DEFAULT|wx.ICON_QUESTION)
+            
+            if wxmessage.ShowModal() == wx.ID_YES:
+                
+                for program in progList:
+                    
+                    deleteCmd = ['DELETE_RECORDING']
+                    deleteCmd.extend(program.data)
+                    output = self.mythTV.backendCommand( mythtv.BACKEND_SEP.join(deleteCmd) ).split(mythtv.BACKEND_SEP)
+
+                    # todo - make it possible to choose whether or not to do this
+                    deleteCmd = ['FORGET_RECORDING']
+                    deleteCmd.extend(program.data)
+                    output = self.mythTV.backendCommand( mythtv.BACKEND_SEP.join(deleteCmd) ).split(mythtv.BACKEND_SEP)
+                                        
+
+        # reload the recording list
+        self.loadRecordingsFromMyth()
+
         event.Skip()
 
     def onMenuDelete(self, event): # wxGlade: mainFrame.<event_handler>
