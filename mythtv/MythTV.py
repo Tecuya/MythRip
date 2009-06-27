@@ -238,6 +238,24 @@ class MythTV:
 		else:
 			return False
 
+
+	def deleteRecording(self, program, forget):
+		"""
+		Deletes a recording from the backend.  boolean 'forget' parameters 
+		dictates whether or not a FORGET_RECORDING is called (to allow re-record)
+		"""
+
+		deleteCmd = ['DELETE_RECORDING']
+		deleteCmd.extend(program.data)
+		self.backendCommand( BACKEND_SEP.join(deleteCmd) ).split(BACKEND_SEP)
+		
+		if forget:
+			deleteCmd = ['FORGET_RECORDING']
+			deleteCmd.extend(program.data)
+			self.backendCommand( BACKEND_SEP.join(deleteCmd) ).split(BACKEND_SEP)
+		
+
+
 class Recorder:
 	"""
 	Represents a MythTV capture card.

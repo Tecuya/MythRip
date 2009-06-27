@@ -19,3 +19,7 @@ todo before release:
   figure out where we want to keep our passlogfile 
 
   threadDetailFrames - what happens when a frame is destroyed..?
+
+  logging support
+
+  scan mplayer paths

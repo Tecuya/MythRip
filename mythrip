@@ -21,7 +21,7 @@ import stat
 # end wxGlade
 
 
-
+mythripVersionString = "MythRip v0.1"
 
 class threadDetailFrame(wx.Frame):
     def __init__(self, *args, **kwds):
@@ -105,21 +105,6 @@ class threadDetailFrame(wx.Frame):
 # end of class threadDetailFrame
 
 
-class MyFrame(wx.Frame):
-    def __init__(self, *args, **kwds):
-        # content of this block not found: did you rename this class?
-        pass
-
-    def __set_properties(self):
-        # content of this block not found: did you rename this class?
-        pass
-
-    def __do_layout(self):
-        # content of this block not found: did you rename this class?
-        pass
-
-# end of class MyFrame
-
 
 class mainFrame(wx.Frame):
     def __init__(self, *args, **kwds):
@@ -127,6 +112,7 @@ class mainFrame(wx.Frame):
         toolbarEncode = wx.NewId()
         toolbarView = wx.NewId()
         toolbarDelete = wx.NewId()
+        toolbarDeleteRerecord = wx.NewId()
         toolbarPrefs = wx.NewId()
         toolbarReload = wx.NewId()
         toolbarQuit = wx.NewId()
@@ -138,20 +124,29 @@ class mainFrame(wx.Frame):
         # Menu Bar
         self.mainFrameMenubar = wx.MenuBar()
         self.fileMenuItem = wx.Menu()
-        self.deleteMenuItem = wx.MenuItem(self.fileMenuItem, wx.NewId(), "&Delete", "", wx.ITEM_NORMAL)
-        self.fileMenuItem.AppendItem(self.deleteMenuItem)
+        self.reloadMenuItem = wx.MenuItem(self.fileMenuItem, wx.NewId(), "&Reload", "", wx.ITEM_NORMAL)
+        self.fileMenuItem.AppendItem(self.reloadMenuItem)
+        self.encodeMenuItem = wx.MenuItem(self.fileMenuItem, wx.NewId(), "&Encode", "", wx.ITEM_NORMAL)
+        self.fileMenuItem.AppendItem(self.encodeMenuItem)
+        self.viewMenuItem = wx.MenuItem(self.fileMenuItem, wx.NewId(), "&View Recording", "", wx.ITEM_NORMAL)
+        self.fileMenuItem.AppendItem(self.viewMenuItem)
         self.fileMenuItem.AppendSeparator()
         self.quitMenuItem = wx.MenuItem(self.fileMenuItem, wx.NewId(), "&Quit", "", wx.ITEM_NORMAL)
         self.fileMenuItem.AppendItem(self.quitMenuItem)
         self.mainFrameMenubar.Append(self.fileMenuItem, "&File")
         self.editMenuItem = wx.Menu()
+        self.deleteMenuItem = wx.MenuItem(self.editMenuItem, wx.NewId(), "&Delete", "", wx.ITEM_NORMAL)
+        self.editMenuItem.AppendItem(self.deleteMenuItem)
+        self.deleteRerecordMenuItem = wx.MenuItem(self.editMenuItem, wx.NewId(), "&Delete + Re-record", "", wx.ITEM_NORMAL)
+        self.editMenuItem.AppendItem(self.deleteRerecordMenuItem)
+        self.editMenuItem.AppendSeparator()
         self.prefsMenuItem = wx.MenuItem(self.editMenuItem, wx.NewId(), "&Preferences", "", wx.ITEM_NORMAL)
         self.editMenuItem.AppendItem(self.prefsMenuItem)
         self.mainFrameMenubar.Append(self.editMenuItem, "&Edit")
-        self.viewMenuItem = wx.Menu()
-        self.queMenuItem = wx.MenuItem(self.viewMenuItem, wx.NewId(), "&Queue", "", wx.ITEM_NORMAL)
-        self.viewMenuItem.AppendItem(self.queMenuItem)
-        self.mainFrameMenubar.Append(self.viewMenuItem, "&View")
+        self.viewTopMenuItem = wx.Menu()
+        self.queMenuItem = wx.MenuItem(self.viewTopMenuItem, wx.NewId(), "&Queue", "", wx.ITEM_NORMAL)
+        self.viewTopMenuItem.AppendItem(self.queMenuItem)
+        self.mainFrameMenubar.Append(self.viewTopMenuItem, "&View")
         self.helpMenuItem = wx.Menu()
         self.aboutMenuItem = wx.MenuItem(self.helpMenuItem, wx.NewId(), "&About", "", wx.ITEM_NORMAL)
         self.helpMenuItem.AppendItem(self.aboutMenuItem)
@@ -163,13 +158,15 @@ class mainFrame(wx.Frame):
         # Tool Bar
         self.mainFrameToolbar = wx.ToolBar(self, -1)
         self.SetToolBar(self.mainFrameToolbar)
-        self.mainFrameToolbar.AddLabelTool(toolbarReload, "Reload", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/reload.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Reload MythTV Recording List", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarReload, "Reload", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/reload.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Reload MythTV recording list", "")
         self.mainFrameToolbar.AddSeparator()
-        self.mainFrameToolbar.AddLabelTool(toolbarView, "View", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-media-play-ltr.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "View selected recordings(s)", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarView, "View", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-media-play-ltr.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "View selected recording", "")
         self.mainFrameToolbar.AddLabelTool(toolbarEncode, "Encode", wx.Bitmap("/usr/share/icons/gnome/32x32/categories/applications-system.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Encode selected recordings(s)", "")
-        self.mainFrameToolbar.AddLabelTool(toolbarDelete, "Delete", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/stock_delete.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Delete selected recordings(s)", "")
         self.mainFrameToolbar.AddSeparator()
-        self.mainFrameToolbar.AddLabelTool(toolbarPrefs, "Preferences", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Open Preferences Dialog", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarDelete, "Delete", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/stock_delete.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Delete and do not re-record selected recordings(s)", "")
+        self.mainFrameToolbar.AddLabelTool(toolbarDeleteRerecord, "DeleteRerecord", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/window-close.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Delete and re-record selected recording(s)", "")
+        self.mainFrameToolbar.AddSeparator()
+        self.mainFrameToolbar.AddLabelTool(toolbarPrefs, "Preferences", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Open preferences dialog", "")
         self.mainFrameToolbar.AddLabelTool(toolbarQuit, "Quit", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/application-exit.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Quit", "")
         # Tool Bar end
         self.mainFrameListCtrl = wx.ListCtrl(self, -1, style=wx.LC_REPORT|wx.LC_EDIT_LABELS|wx.LC_SORT_ASCENDING|wx.SUNKEN_BORDER)
@@ -177,16 +174,22 @@ class mainFrame(wx.Frame):
         self.__set_properties()
         self.__do_layout()
 
-        self.Bind(wx.EVT_MENU, self.onMenuDelete, self.deleteMenuItem)
-        self.Bind(wx.EVT_MENU, self.onMenuQuit, self.quitMenuItem)
-        self.Bind(wx.EVT_MENU, self.onMenuPrefs, self.prefsMenuItem)
-        self.Bind(wx.EVT_MENU, self.onMenuQueue, self.queMenuItem)
-        self.Bind(wx.EVT_MENU, self.onMenuAbout, self.aboutMenuItem)
-        self.Bind(wx.EVT_TOOL, self.onToolbarReload, id=toolbarReload)
-        self.Bind(wx.EVT_TOOL, self.onToolbarEncode, id=toolbarEncode)
-        self.Bind(wx.EVT_TOOL, self.onToolbarDelete, id=toolbarDelete)
-        self.Bind(wx.EVT_TOOL, self.onToolbarPrefs, id=toolbarPrefs)
-        self.Bind(wx.EVT_TOOL, self.onToolbarQuit, id=toolbarQuit)
+        self.Bind(wx.EVT_MENU, self.onReload, self.reloadMenuItem)
+        self.Bind(wx.EVT_MENU, self.onEncode, self.encodeMenuItem)
+        self.Bind(wx.EVT_MENU, self.onView, self.viewMenuItem)
+        self.Bind(wx.EVT_MENU, self.onQuit, self.quitMenuItem)
+        self.Bind(wx.EVT_MENU, self.onDelete, self.deleteMenuItem)
+        self.Bind(wx.EVT_MENU, self.onDeleteRerecord, self.deleteRerecordMenuItem)
+        self.Bind(wx.EVT_MENU, self.onPrefs, self.prefsMenuItem)
+        self.Bind(wx.EVT_MENU, self.onQueue, self.queMenuItem)
+        self.Bind(wx.EVT_MENU, self.onAbout, self.aboutMenuItem)
+        self.Bind(wx.EVT_TOOL, self.onReload, id=toolbarReload)
+        self.Bind(wx.EVT_TOOL, self.onView, id=toolbarView)
+        self.Bind(wx.EVT_TOOL, self.onEncode, id=toolbarEncode)
+        self.Bind(wx.EVT_TOOL, self.onDelete, id=toolbarDelete)
+        self.Bind(wx.EVT_TOOL, self.onDeleteRerecord, id=toolbarDeleteRerecord)
+        self.Bind(wx.EVT_TOOL, self.onPrefs, id=toolbarPrefs)
+        self.Bind(wx.EVT_TOOL, self.onQuit, id=toolbarQuit)
         self.Bind(wx.EVT_LIST_COL_CLICK, self.onColClick, self.mainFrameListCtrl)
         self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.onItemRightClick, self.mainFrameListCtrl)
         # end wxGlade
@@ -194,12 +197,14 @@ class mainFrame(wx.Frame):
         ################################################################################
         # Various non-wxglade GUI setup
 
-        # set up our child frames
+        # set up our various single-instance child frames
         self.encoderQueueFrame = encoderQueueFrame(parent=self)
         self.preferencesFrame = preferencesFrame(parent=self)
+        self.aboutFrame = aboutFrame(parent=self)
 
         # bind "OK" button presses in preferences frame to our own event handler
         self.Bind(wx.EVT_BUTTON, self.onPrefsOK, self.preferencesFrame.preferencesOKButton)
+        self.Bind(wx.EVT_BUTTON, self.onPrefsCancel, self.preferencesFrame.preferencesCancelButton)
 
         # set up the ListCtrl columns
         self.mainFrameListCtrl.InsertColumn(0, "Show")
@@ -217,7 +222,11 @@ class mainFrame(wx.Frame):
                            { 'short': '-u', 'long': '--mysqluser', 'action': 'store', 'dest': 'mysqlUser', 'default': 'localhost', 'help': 'MythTV MySQL User', 'autoDiscover': True},
                            { 'short': '-p', 'long': '--mysqlpass', 'action': 'store', 'dest': 'mysqlPassword', 'default': 'localhost', 'help': 'MythTV MySQL Password', 'autoDiscover': True},
                            { 'short': '-d', 'long': '--mysqldb', 'action': 'store', 'dest': 'mysqlDB', 'default': 'localhost', 'help': 'MythTV MySQL Database Name', 'autoDiscover': True},
+                           { 'short': '-R', 'long': '--mythrecordingpath', 'action': 'store', 'dest': 'mythtvRecordingPath', 'default': '0', 'help': 'MythTV Recording Path'},
                            { 'short': '-C', 'long': '--mythcutlist', 'action': 'store', 'dest': 'useMythCutlist', 'default': '0', 'help': 'Use MythTV Cutlist'},
+                           { 'short': '-m', 'long': '--mencoderpath', 'action': 'store', 'dest': 'mencoderPath', 'default': '/usr/bin/mencoder', 'help': 'Full path to mencoder'},
+                           { 'short': '-M', 'long': '--playerpath', 'action': 'store', 'dest': 'playerPath', 'default': '/usr/bin/mplayer', 'help': 'Full path to player'},
+                           { 'short': '-z', 'long': '--mythtranscodepath', 'action': 'store', 'dest': 'mythtranscodePath', 'default': '/usr/bin/mythtranscode', 'help': 'Full path to mythtranscode'},
                            { 'short': '-c', 'long': '--container', 'action': 'store', 'dest': 'containerFormat', 'default': '0', 'help' : 'Container format' },
                            { 'short': '-v', 'long': '--videocodec', 'action': 'store', 'dest': 'videoCodec', 'default': '0', 'help' : 'Video Codec Choice Index' },
                            { 'short': '-1', 'long': '--videocodecopts', 'action': 'store', 'dest': 'videoFirstPassOpts', 'default': '', 'help' : 'Video Codec Option String - Pass 1' },
@@ -252,11 +261,6 @@ class mainFrame(wx.Frame):
 
             # load recordings from myth
             self.loadRecordingsFromMyth()
-
-        # prepare the right-click context menu entry definitions
-        self.contextMenuEntriesById = {}
-        for item in [ "Preview", "Delete", "Encode" ]:
-            self.contextMenuEntriesById[ wx.NewId() ] = item
 
     def __set_properties(self):
         # begin wxGlade: mainFrame.__set_properties
@@ -502,20 +506,8 @@ class mainFrame(wx.Frame):
         self.preferencesFrame.setPreferences( self.prefs )
         self.encoderQueueFrame.setPreferences( self.prefs )
 
+
         
-    def onPrefsOK(self, event):
-
-        # load the preferences from the prefs frame
-        self.prefs = self.preferencesFrame.getPreferences()
-        
-        self.writePrefsToDisk()
-
-        self.populatePrefsToChildren()
-
-        self.mainFrameStatusbar.PushStatusText('Preferences saved.')
-
-        event.Skip()
-
     def loadPrefsFromDisk(self):
         
         # load the prefs from disk to self.prefs        
@@ -601,25 +593,76 @@ class mainFrame(wx.Frame):
         errorDialog = wx.MessageDialog(parent=self, caption=title, message=message)
         errorDialog.ShowModal()
 
+    def deleteRecordings(self,forget):
+        progList = self.getSelectedPrograms()
+
+        progCount = len(progList)
+
+        if forget:
+            actiontitle = "delete and re-record"
+        else:
+            actiontitle = "delete"
+
+        if progCount:
+
+            if progCount == 1:
+                message = "Really %s show '%s'?" % (actiontitle, progList[0])
+            else:
+                message = "Really %s %d shows?" % (actiontitle, progCount)
+
+            wxmessage = wx.MessageDialog(parent=self, message=message, caption="MythRip - Confirm Delete", style=wx.YES_NO|wx.YES_DEFAULT|wx.ICON_QUESTION)
+            
+            if wxmessage.ShowModal() == wx.ID_YES:
+                
+                for program in progList:                    
+                    self.mythTV.deleteRecording(program, forget)                                        
+
+        # reload the recording list
+        self.loadRecordingsFromMyth()
+        
+
     ###########################################################################
     # event handler land
 
         
-    def onMenuQuit(self, event): # wxGlade: mainFrame.<event_handler>
-        sys.exit()
+    def onPrefsOK(self, event):
 
-
-    def onItemRightClick(self, event): # wxGlade: mainFrame.<event_handler>
+        # load the preferences from the prefs frame
+        self.prefs = self.preferencesFrame.getPreferences()
         
-        menu = wx.Menu()
+        self.writePrefsToDisk()
+        self.populatePrefsToChildren()
 
-        for (id,title) in self.contextMenuEntriesById.iteritems():
-            menu.Append(id, title)
-            wx.EVT_MENU( menu, id, self.onContextMenuSelection )
-            
-        self.PopupMenu( menu )
+        self.mainFrameStatusbar.PushStatusText('Preferences saved.')
 
         event.Skip()
+
+
+    def onPrefsCancel(self, event):
+        
+        # restore previous prefs settings if they cancel
+        self.preferencesFrame.setPreferences( self.prefs )
+
+        
+    def onQuit(self, event): # wxGlade: mainFrame.<event_handler>
+        
+        runningThreads = []
+
+        for threadID in self.encoderQueueFrame.threadOrder:            
+            encoderThread = self.encoderQueueFrame.threads[ threadID ]            
+            if encoderThread.state == "running":
+                runningThreads.append(threadID)
+
+        if len(runningThreads):
+            message = "%d threads are running now.  Terminate them and quit?" % len(runningThreads)
+            wxmessage = wx.MessageDialog(parent=self, message=message, caption="MythRip - Confirm Quit", style=wx.YES_NO|wx.YES_DEFAULT|wx.ICON_QUESTION)
+            if wxmessage.ShowModal() == wx.ID_YES:
+                self.encoderQueueFrame.abortThreadsAndQuit( runningThreads )
+
+        else:
+
+            sys.exit()
+
 
     def onColClick(self, event): # wxGlade: mainFrame.<event_handler>
 
@@ -643,66 +686,28 @@ class mainFrame(wx.Frame):
             self.addRecordingsToQueue()
         event.Skip()
         
-    def onMenuQueue(self, event): # wxGlade: mainFrame.<event_handler>        
+    def onQueue(self, event): # wxGlade: mainFrame.<event_handler>        
         print "showing encoderQueueFrame.."
         self.encoderQueueFrame.Show()
         event.Skip()
 
-    def onToolbarEncode(self, event): # wxGlade: mainFrame.<event_handler>
+    def onEncode(self, event): # wxGlade: mainFrame.<event_handler>
         self.addRecordingsToQueue()
         event.Skip()
 
-    def onToolbarDelete(self, event): # wxGlade: mainFrame.<event_handler>
-
-        progList = self.getSelectedPrograms()
-
-        progCount = len(progList)
-
-        if progCount:
-
-            if progCount == 1:
-                message = "Really delete show '%s'?" % progList[0]
-            else:
-                message = "Really delete %d shows?" % progCount
-
-            wxmessage = wx.MessageDialog(parent=self, message=message, caption="MythRip - Confirm Delete", style=wx.YES_NO|wx.YES_DEFAULT|wx.ICON_QUESTION)
-            
-            if wxmessage.ShowModal() == wx.ID_YES:
-                
-                for program in progList:
-                    
-                    deleteCmd = ['DELETE_RECORDING']
-                    deleteCmd.extend(program.data)
-                    output = self.mythTV.backendCommand( mythtv.BACKEND_SEP.join(deleteCmd) ).split(mythtv.BACKEND_SEP)
-
-                    # todo - make it possible to choose whether or not to do this
-                    deleteCmd = ['FORGET_RECORDING']
-                    deleteCmd.extend(program.data)
-                    output = self.mythTV.backendCommand( mythtv.BACKEND_SEP.join(deleteCmd) ).split(mythtv.BACKEND_SEP)
-                                        
-
-        # reload the recording list
-        self.loadRecordingsFromMyth()
-
+    def onDelete(self, event): # wxGlade: mainFrame.<event_handler>        
+        self.deleteRecordings(forget=False)
         event.Skip()
 
-    def onMenuDelete(self, event): # wxGlade: mainFrame.<event_handler>
-        print "Event handler `onMenuDelete' not implemented"
+    def onDeleteRerecord(self, event): # wxGlade: mainFrame.<event_handler>
+        self.deleteRecordings(forget=True)
         event.Skip()
 
-    def onMenuPrefs(self, event): # wxGlade: mainFrame.<event_handler>
+    def onPrefs(self, event): # wxGlade: mainFrame.<event_handler>
         self.preferencesFrame.Show()
         event.Skip()
 
-    def onToolbarPrefs(self, event): # wxGlade: mainFrame.<event_handler>
-        self.preferencesFrame.Show()
-        event.Skip()
-
-    def onToolbarQuit(self, event): # wxGlade: mainFrame.<event_handler>
-        print "Event handler `onToolbarQuit' not implemented"
-        event.Skip()
-
-    def onToolbarReload(self, event): # wxGlade: mainFrame.<event_handler>
+    def onReload(self, event): # wxGlade: mainFrame.<event_handler>
         if not self.mythTV:
             self.connectToMyth()
             
@@ -713,8 +718,28 @@ class mainFrame(wx.Frame):
 
         event.Skip()
 
-    def onMenuAbout(self, event): # wxGlade: mainFrame.<event_handler>
-        print "Event handler `onMenuAbout' not implemented"
+    def onAbout(self, event): # wxGlade: mainFrame.<event_handler>
+        self.aboutFrame.Show()
+        event.Skip()
+
+
+    def onView(self, event): # wxGlade: mainFrame.<event_handler>
+        
+        program = self.getSelectedPrograms()[0]
+        
+        filename = os.path.join(self.prefs['mythtvRecordingPath'], program.filename.split('/')[3:][0]) 
+
+        if os.access(filename, os.R_OK):
+            cmd = [ 'mplayer', os.path.join(self.prefs['mythtvRecordingPath'], program.filename.split('/')[3:][0]) ]
+            subprocess.call(cmd)
+        else:
+            wxmessage = wx.MessageDialog(parent=self, caption="MythRip - Playback Error", message="Could not access file:\n\n%s\n\nCheck 'MythTV Recording Path' in preferences" % filename)
+            wxmessage.ShowModal()
+
+        event.Skip()
+
+    def onItemRightClick(self, event): # wxGlade: mainFrame.<event_handler>
+        print "Event handler `onItemRightClick' not implemented"
         event.Skip()
 
 # end of class mainFrame
@@ -728,16 +753,23 @@ class aboutFrame(wx.Frame):
         # begin wxGlade: aboutFrame.__init__
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
-        self.aboutFrameContents = wx.StaticText(self, -1, "About MythRIP", style=wx.ALIGN_CENTRE)
+        self.aboutFrameContents = wx.StaticText(self, -1, "About MythRIP:", style=wx.ALIGN_CENTRE)
+        self.versionLabel = wx.StaticText(self, -1, "MythRip v0.0")
+        self.static_line_4 = wx.StaticLine(self, -1)
         self.aboutFrameCloseButton = wx.Button(self, wx.ID_CLOSE, "")
 
         self.__set_properties()
         self.__do_layout()
+
+        self.Bind(wx.EVT_BUTTON, self.onCloseButton, self.aboutFrameCloseButton)
         # end wxGlade
+
+        self.versionLabel.SetLabel(mythripVersionString)
 
     def __set_properties(self):
         # begin wxGlade: aboutFrame.__set_properties
         self.SetTitle("MythRip - About")
+        self.SetSize((189, 109))
         self.aboutFrameCloseButton.SetDefault()
         # end wxGlade
 
@@ -745,43 +777,19 @@ class aboutFrame(wx.Frame):
         # begin wxGlade: aboutFrame.__do_layout
         aboutFrameSizer = wx.BoxSizer(wx.VERTICAL)
         aboutFrameSizer.Add(self.aboutFrameContents, 0, wx.BOTTOM|wx.EXPAND, 0)
+        aboutFrameSizer.Add(self.versionLabel, 0, wx.ALL|wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 11)
+        aboutFrameSizer.Add(self.static_line_4, 0, wx.EXPAND, 0)
         aboutFrameSizer.Add(self.aboutFrameCloseButton, 0, wx.ALIGN_CENTER_HORIZONTAL, 0)
         self.SetSizer(aboutFrameSizer)
-        aboutFrameSizer.Fit(self)
         self.Layout()
         # end wxGlade
+
+    def onCloseButton(self, event): # wxGlade: aboutFrame.<event_handler>
+        self.Hide()
+        event.Skip()
 
 # end of class aboutFrame
 
-
-class encoderOptionsFrame(wx.Frame):
-    def __init__(self, *args, **kwds):
-        # begin wxGlade: encoderOptionsFrame.__init__
-        kwds["style"] = wx.DEFAULT_FRAME_STYLE
-        wx.Frame.__init__(self, *args, **kwds)
-        self.encoderOptionsFrameStatusbar = self.CreateStatusBar(1, 0)
-
-        self.__set_properties()
-        self.__do_layout()
-        # end wxGlade
-
-    def __set_properties(self):
-        # begin wxGlade: encoderOptionsFrame.__set_properties
-        self.SetTitle("MythRip - Encoder Options")
-        self.SetSize((400, 300))
-        self.encoderOptionsFrameStatusbar.SetStatusWidths([-1])
-        # statusbar fields
-        encoderOptionsFrameStatusbar_fields = ["encoderOptionsFrame_statusbar"]
-        for i in range(len(encoderOptionsFrameStatusbar_fields)):
-            self.encoderOptionsFrameStatusbar.SetStatusText(encoderOptionsFrameStatusbar_fields[i], i)
-        # end wxGlade
-
-    def __do_layout(self):
-        # begin wxGlade: encoderOptionsFrame.__do_layout
-        self.Layout()
-        # end wxGlade
-
-# end of class encoderOptionsFrame
 
 
 class encoderQueueFrame(wx.Frame):
@@ -839,6 +847,9 @@ class encoderQueueFrame(wx.Frame):
         # this holds our app preferences
         self.prefs = {}
 
+        # this is set when we are told to abort all jobs & quit.  if tick sees it, it checks that all threads are dead, then quit the app
+        self.quitFlag = False
+
         # set up the listctrl
         self.encoderQueueListCtrl.InsertColumn(0, "Show")
         self.encoderQueueListCtrl.InsertColumn(1, "Episode")
@@ -847,11 +858,6 @@ class encoderQueueFrame(wx.Frame):
         
         # connect up a handler to update the GUI upon events from the encoder threads
         EVT_ENCODER(self, self.onEncoderEvent)    
-
-        # prepare the right-click context menu entry definitions        
-        self.contextMenuEntriesById = {}
-        for item in [ "Toggle Pause","View Details","Remove" ]:
-            self.contextMenuEntriesById[ wx.NewId() ] = item
         
         self.threadDetailFrames = {}
         
@@ -963,6 +969,13 @@ class encoderQueueFrame(wx.Frame):
         self.onThreadPoolChange(selThreads)
 
 
+    def abortThreadsAndQuit(self, abortThreads):
+        
+        for threadID in abortThreads:
+            self.threads[ threadID ].doCommand = "abort"
+            
+        self.quitFlag = True
+
     def removeCompletedItems(self):
         # lists to hold indexes to be deleted from self.threads & self.threadOrder
         nukeThreads = []
@@ -1023,7 +1036,7 @@ class encoderQueueFrame(wx.Frame):
         # 0 is yes
         if self.prefs['removeCompleted'] == 0: 
             self.removeCompletedItems()
-
+        
         # this is where the encoder queue determines when it needs to start more encoders
         while True:
         
@@ -1044,6 +1057,10 @@ class encoderQueueFrame(wx.Frame):
                 # make a list of threads that are waiting to start
                 elif encoderThread.state == "new":
                     pendingThreads.append( encoderThread )
+
+            # if self.quitFlag is set, we are to terminate once no threads are left running
+            if runningThreads == 0 and self.quitFlag:
+                sys.exit()
 
             # if there are less threads running than the threadCount, then start some until thats no longer true    
             if runningThreads < self.prefs['threadCount'] and len(pendingThreads):
@@ -1107,18 +1124,6 @@ class encoderQueueFrame(wx.Frame):
 
         event.Skip()
 
-    def onItemRightClick(self, event): # wxGlade: encoderQueueFrame.<event_handler>
-        
-        menu = wx.Menu()
-
-        for (id,title) in self.contextMenuEntriesById.iteritems():
-            menu.Append(id, title)
-            wx.EVT_MENU( menu, id, self.onContextMenuSelection )
-            
-        self.PopupMenu( menu )
-
-        event.Skip()
-
 
     def onContextMenuSelection(self, event):        
         selectedMenuItem = self.contextMenuEntriesById[ event.GetId() ]
@@ -1146,6 +1151,10 @@ class encoderQueueFrame(wx.Frame):
                 self.threads[ threadID ].setCommand("abort")
 
             item = self.encoderQueueListCtrl.GetNextSelected(item)
+        event.Skip()
+
+    def onItemRightClick(self, event): # wxGlade: encoderQueueFrame.<event_handler>
+        print "Event handler `onItemRightClick' not implemented"
         event.Skip()
 
 # end of class encoderQueueFrame
@@ -1261,11 +1270,9 @@ class encoderThread(threading.Thread):
                 print "aborting pass %d" % self.currentPass
                 break
 
-
             # if this isnt the first loop, we can't count on mythtranscode being started!  we need to start a new one for subsequent passes
             if self.currentPass != 1:
                 self.startMythtranscode()
-
 
             self.stdoutSockMenc, stdoutChildSockMenc = socket.socketpair() 
             self.stderrSockMenc, stderrChildSockMenc = socket.socketpair() 
@@ -1623,11 +1630,12 @@ class preferencesFrame(wx.Frame):
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
         self.preferencesNotebook = wx.Notebook(self, -1, style=0)
+        self.preferencesExternalProgramsPane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesFilesPane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesQueuePane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesEncodersPane = wx.Panel(self.preferencesNotebook, -1)
         self.preferencesMythTVPane = wx.Panel(self.preferencesNotebook, -1)
-        self.label_22 = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Settings: ")
+        self.mysqlSettingsLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Settings: ")
         self.mysqlHostLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Hostname: ")
         self.mysqlHostText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
         self.mysqlPortLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MySQL Port: ")
@@ -1641,6 +1649,8 @@ class preferencesFrame(wx.Frame):
         self.mythOptionsLabel = wx.StaticText(self.preferencesMythTVPane, -1, "MythTV Options: ")
         self.useMythCutlistLabel = wx.StaticText(self.preferencesMythTVPane, -1, "Use Myth Cutlists: ")
         self.useMythCutlistChoice = wx.Choice(self.preferencesMythTVPane, -1, choices=["Yes", "No"])
+        self.mythtvRecordingPath = wx.StaticText(self.preferencesMythTVPane, -1, "MythTV Recording Path: ")
+        self.mythtvRecordingText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
         self.FileOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "File Options:")
         self.containerFormatLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
         self.containerFormatChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["avi", "mkv"])
@@ -1670,6 +1680,12 @@ class preferencesFrame(wx.Frame):
         self.savePathPicker = wx.DirPickerCtrl(self.preferencesFilesPane, -1)
         self.fileTemplateLabel = wx.StaticText(self.preferencesFilesPane, -1, "File Naming Template: ")
         self.fileTemplateText = wx.TextCtrl(self.preferencesFilesPane, -1, "")
+        self.mencoderPathLabel = wx.StaticText(self.preferencesExternalProgramsPane, -1, "Path to mencoder: ")
+        self.mencoderPathText = wx.TextCtrl(self.preferencesExternalProgramsPane, -1, "")
+        self.playerPathLabel = wx.StaticText(self.preferencesExternalProgramsPane, -1, "Path to video player: ")
+        self.playerPathText = wx.TextCtrl(self.preferencesExternalProgramsPane, -1, "")
+        self.mythtranscodePathLabel = wx.StaticText(self.preferencesExternalProgramsPane, -1, "Path to mythtranscode: ")
+        self.mythtranscodePathText = wx.TextCtrl(self.preferencesExternalProgramsPane, -1, "")
         self.preferencesCancelButton = wx.Button(self, wx.ID_CANCEL, "")
         self.preferencesOKButton = wx.Button(self, wx.ID_OK, "")
 
@@ -1689,6 +1705,7 @@ class preferencesFrame(wx.Frame):
                         'mysqlPassword': ['TextCtrl', self.mysqlPasswordText],
                         'mysqlDB': ['TextCtrl', self.mysqlDBNameText],
                         'useMythCutlist': ['Choice', self.useMythCutlistChoice],
+                        'mythtvRecordingPath': ['TextCtrl', self.mythtvRecordingText],
                         'containerFormat': ['Choice', self.containerFormatChoice],
                         'videoCodec': ['Choice', self.videoCodecChoice],
                         'videoFirstPassOpts': ['TextCtrl', self.videoFirstPassOptsText],
@@ -1701,12 +1718,17 @@ class preferencesFrame(wx.Frame):
                         'threadCount': ['Spin', self.threadCountSpin],
                         'removeCompleted': ['Choice', self.removeCompletedChoice],
                         'savePath': ['DirPicker', self.savePathPicker],
-                        'fileTemplate': ['TextCtrl', self.fileTemplateText]                        
+                        'fileTemplate': ['TextCtrl', self.fileTemplateText],
+                        'mencoderPath': ['TextCtrl', self.mencoderPathText],
+                        'playerPath': ['TextCtrl', self.playerPathText],
+                        'mythtranscodePath': ['TextCtrl', self.mythtranscodePathText],
+
                         }
 
     def __set_properties(self):
         # begin wxGlade: preferencesFrame.__set_properties
         self.SetTitle("MythRip - Preferences")
+        self.SetSize((469, 442))
         self.useMythCutlistChoice.SetSelection(0)
         self.containerFormatChoice.SetSelection(0)
         self.videoCodecChoice.SetSelection(0)
@@ -1719,11 +1741,12 @@ class preferencesFrame(wx.Frame):
         # begin wxGlade: preferencesFrame.__do_layout
         preferencesSizer = wx.BoxSizer(wx.VERTICAL)
         preferencesButtonSizer = wx.BoxSizer(wx.HORIZONTAL)
+        externalProgramsSizer = wx.FlexGridSizer(4, 2, 0, 0)
         preferencesFilesSizer = wx.FlexGridSizer(6, 2, 0, 0)
         preferencesQueueSIzer = wx.FlexGridSizer(2, 2, 0, 0)
         preferencesEncodersSizer = wx.FlexGridSizer(7, 2, 0, 0)
-        preferencesMythTVSizer = wx.FlexGridSizer(8, 2, 0, 0)
-        preferencesMythTVSizer.Add(self.label_22, 0, 0, 0)
+        preferencesMythTVSizer = wx.FlexGridSizer(9, 2, 0, 0)
+        preferencesMythTVSizer.Add(self.mysqlSettingsLabel, 0, 0, 0)
         preferencesMythTVSizer.Add((20, 20), 0, 0, 0)
         preferencesMythTVSizer.Add(self.mysqlHostLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesMythTVSizer.Add(self.mysqlHostText, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
@@ -1739,6 +1762,8 @@ class preferencesFrame(wx.Frame):
         preferencesMythTVSizer.Add((20, 20), 0, 0, 0)
         preferencesMythTVSizer.Add(self.useMythCutlistLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesMythTVSizer.Add(self.useMythCutlistChoice, 0, 0, 0)
+        preferencesMythTVSizer.Add(self.mythtvRecordingPath, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesMythTVSizer.Add(self.mythtvRecordingText, 0, wx.EXPAND, 0)
         self.preferencesMythTVPane.SetSizer(preferencesMythTVSizer)
         preferencesMythTVSizer.AddGrowableCol(1)
         preferencesEncodersSizer.Add(self.FileOptionsLabel, 0, 0, 0)
@@ -1779,16 +1804,24 @@ class preferencesFrame(wx.Frame):
         preferencesFilesSizer.Add(self.fileTemplateText, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
         self.preferencesFilesPane.SetSizer(preferencesFilesSizer)
         preferencesFilesSizer.AddGrowableCol(1)
+        externalProgramsSizer.Add(self.mencoderPathLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        externalProgramsSizer.Add(self.mencoderPathText, 0, wx.EXPAND, 0)
+        externalProgramsSizer.Add(self.playerPathLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        externalProgramsSizer.Add(self.playerPathText, 0, wx.EXPAND, 0)
+        externalProgramsSizer.Add(self.mythtranscodePathLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        externalProgramsSizer.Add(self.mythtranscodePathText, 0, wx.EXPAND, 0)
+        self.preferencesExternalProgramsPane.SetSizer(externalProgramsSizer)
+        externalProgramsSizer.AddGrowableCol(1)
         self.preferencesNotebook.AddPage(self.preferencesMythTVPane, "MythTV")
         self.preferencesNotebook.AddPage(self.preferencesEncodersPane, "Encoders")
         self.preferencesNotebook.AddPage(self.preferencesQueuePane, "Queue")
         self.preferencesNotebook.AddPage(self.preferencesFilesPane, "Files")
+        self.preferencesNotebook.AddPage(self.preferencesExternalProgramsPane, "External Programs")
         preferencesSizer.Add(self.preferencesNotebook, 1, wx.EXPAND, 0)
         preferencesButtonSizer.Add(self.preferencesCancelButton, 0, wx.ALIGN_BOTTOM, 0)
         preferencesButtonSizer.Add(self.preferencesOKButton, 0, wx.ALIGN_BOTTOM, 0)
         preferencesSizer.Add(preferencesButtonSizer, 0, wx.ALIGN_CENTER_HORIZONTAL, 0)
         self.SetSizer(preferencesSizer)
-        preferencesSizer.Fit(self)
         self.Layout()
         # end wxGlade
 
@@ -1838,6 +1871,7 @@ class preferencesFrame(wx.Frame):
 
 
     def onCancelButton(self, event): # wxGlade: preferencesFrame.<event_handler>
+        # this event is picked up by the mainframe where the actual saving/load of preferences takes place
         self.Hide()
         event.Skip()
 
