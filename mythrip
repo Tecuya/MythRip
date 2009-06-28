@@ -36,9 +36,13 @@ class threadDetailFrame(wx.Frame):
         self.static_line_2 = wx.StaticLine(self, -1)
         self.threadMencoderPass2Label = wx.StaticText(self, -1, "mencoder Pass 2 Command:")
         self.threadMencoderPass2Cmd = wx.StaticText(self, -1, "[ Waiting.. ]")
+        self.static_line_6 = wx.StaticLine(self, -1)
+        self.threadMythtranscodeLabel = wx.StaticText(self, -1, "mythtranscode Command:")
+        self.threadMythtranscodeCmd = wx.StaticText(self, -1, "[ Waiting.. ]")
         self.static_line_5 = wx.StaticLine(self, -1)
         self.threadMessagesLabel = wx.StaticText(self, -1, "Messages: ")
         self.threadMessagesText = wx.StaticText(self, -1, "[ None ]")
+        self.static_line_7 = wx.StaticLine(self, -1)
         self.closeButton = wx.Button(self, -1, "Close")
 
         self.__set_properties()
@@ -69,10 +73,15 @@ class threadDetailFrame(wx.Frame):
         threadDetailSizer.Add(self.static_line_2, 0, wx.EXPAND, 0)
         threadDetailSizer.Add(self.threadMencoderPass2Label, 0, 0, 0)
         threadDetailSizer.Add(self.threadMencoderPass2Cmd, 0, 0, 0)
+        threadDetailSizer.Add((20, 20), 0, 0, 0)
+        threadDetailSizer.Add(self.static_line_6, 0, wx.EXPAND, 0)
+        threadDetailSizer.Add(self.threadMythtranscodeLabel, 0, 0, 0)
+        threadDetailSizer.Add(self.threadMythtranscodeCmd, 0, 0, 0)
         threadDetailSizer.Add((20, 20), 1, wx.EXPAND, 0)
         threadDetailSizer.Add(self.static_line_5, 0, wx.EXPAND, 0)
         threadDetailSizer.Add(self.threadMessagesLabel, 0, 0, 0)
         threadDetailSizer.Add(self.threadMessagesText, 0, 0, 0)
+        threadDetailSizer.Add(self.static_line_7, 0, wx.EXPAND, 0)
         threadDetailSizer.Add(self.closeButton, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 0)
         self.SetSizer(threadDetailSizer)
         self.Layout()
@@ -88,6 +97,9 @@ class threadDetailFrame(wx.Frame):
 
         if self.encoderThread.mencoderCmd.has_key(2):
             self.threadMencoderPass2Cmd.SetLabel( " ".join(self.encoderThread.mencoderCmd[2]) )        
+            
+        if len(self.encoderThread.mythtranscodeCmd):
+            self.threadMythtranscodeCmd.SetLabel(" ".join(self.encoderThread.mythtranscodeCmd))
 
         if self.encoderThread.state in ["failed","failedAndAcknowledged"]:
             self.threadMessagesText.SetLabel( self.encoderThread.failedMessage )
@@ -97,6 +109,9 @@ class threadDetailFrame(wx.Frame):
         width = self.GetSizeTuple()[0]
         self.threadMencoderPass1Cmd.Wrap( width )
         self.threadMencoderPass2Cmd.Wrap( width )
+        self.threadMythtranscodeCmd.Wrap( width )
+        self.threadMessagesText.Wrap( width )
+
         self.Layout()
 
     def onCloseButton(self, event): # wxGlade: threadDetailFrame.<event_handler>
@@ -738,11 +753,21 @@ class mainFrame(wx.Frame):
         
         filename = os.path.join(self.prefs['mythtvRecordingPath'], program.filename.split('/')[3:][0]) 
 
+        failed = False
+        
         if os.access(filename, os.R_OK):
             cmd = [ self.prefs['playerPath'], os.path.join(self.prefs['mythtvRecordingPath'], program.filename.split('/')[3:][0]) ]
-            subprocess.call(cmd)
+            try:
+                subprocess.call(cmd)
+            except OSError, e:
+                failed = True
+                failMessage = "Failed spawning process:\n\n%s\n\n%s" % (" ".join(cmd), e)
         else:
-            wxmessage = wx.MessageDialog(parent=self, caption="MythRip - Playback Error", message="Could not access file:\n\n%s\n\nCheck 'MythTV Recording Path' in preferences" % filename)
+            failed = True
+            failMessage = "Could not access file:\n\n%s\n\nCheck 'MythTV Recording Path' in preferences" % filename
+
+        if failed:
+            wxmessage = wx.MessageDialog(parent=self, caption="MythRip - Playback Error", message=failMessage)
             wxmessage.ShowModal()
 
         event.Skip()
@@ -1217,9 +1242,14 @@ class encoderThread(threading.Thread):
         
         self.lastListMessage = "Waiting"
 
-        self.mythTranscodeProcess = False
-        self.mythTranscodeStdout = ""
-        self.mythTranscodeFifoDir = ""
+        # False indicates the process was never started
+        self.mencoderProcess = False
+        self.mythtranscodeProcess = False
+        
+        # this is for scraping video parameters out of mythtranscode output
+        self.mythtranscodeStdout = ""
+
+        self.mythtranscodeFifoDir = ""
         
         # source video/audio properties
         self.vidWidth = ""
@@ -1242,6 +1272,8 @@ class encoderThread(threading.Thread):
 
         self.mencoderCmd = {}
 
+        self.mythtranscodeCmd = False
+
         # load parent constructor
         threading.Thread.__init__(self)
     
@@ -1255,14 +1287,19 @@ class encoderThread(threading.Thread):
         self.startMythtranscode()
 
         # now we need to examine the mythtranscode output to determine the video and audio parameters .. 
-        # we wait up to 10 seconds for them to show up in self.mythTranscodeStdout
+        # we wait up to 10 seconds for them to show up in self.mythtranscodeStdout
         for i in range(10): 
+
+            # mythtranscode isnt even running.. just bail
+            if self.mythtranscodeProcess == False or self.mythtranscodeProcess.poll() == None:
+                break
+
             self.parseSubprocessOutput(mtGathering = True)
-            print self.mythTranscodeStdout,"\n-----------------------------------------"
-            if re.search(".*Stream.*Audio.*kb/s", self.mythTranscodeStdout):
+            print self.mythtranscodeStdout,"\n-----------------------------------------"
+            if re.search(".*Stream.*Audio.*kb/s", self.mythtranscodeStdout):
                 print "Found file AV parameters! Beginning extraction from mythtranscode output"
-                (self.vidWidth, self.vidHeight, self.vidFramerate) = re.findall('.*Stream #.* ([0-9]+)x([0-9]+).* ([0-9]+\.[0-9]+) tb',self.mythTranscodeStdout)[0]
-                (self.audioRate, audioChanMode) = re.findall('.*Stream #.* ([0-9]+) Hz, ([A-Za-z]+)',self.mythTranscodeStdout)[0]
+                (self.vidWidth, self.vidHeight, self.vidFramerate) = re.findall('.*Stream #.* ([0-9]+)x([0-9]+).* ([0-9]+\.[0-9]+) tb',self.mythtranscodeStdout)[0]
+                (self.audioRate, audioChanMode) = re.findall('.*Stream #.* ([0-9]+) Hz, ([A-Za-z]+)',self.mythtranscodeStdout)[0]
                 if audioChanMode == "stereo":
                     self.audioChannels = "2"
                 else:
@@ -1299,57 +1336,81 @@ class encoderThread(threading.Thread):
             if self.currentPass != 1:
                 self.startMythtranscode()
 
+            if self.mythtranscodeProcessError:
+                self.reportSubprocessFailure( self.prefs['mythtranscodePath'], self.lastMythtranscodeStderr )
+                print "aborted or failed; pass %d skipped" % self.currentPass                
+                break
+
             self.stdoutSockMenc, stdoutChildSockMenc = socket.socketpair() 
             self.stderrSockMenc, stderrChildSockMenc = socket.socketpair() 
             self.stdoutSockMenc.settimeout(0.1)
             self.stderrSockMenc.settimeout(0.1)
 
-            self.mencoderProcess = subprocess.Popen(self.mencoderCmd[self.currentPass], stdin=None, stdout=stdoutChildSockMenc.fileno(), stderr=stderrChildSockMenc.fileno())
-            self.mencoderRunning = True
+            self.mencoderProcessError = False
+            try:
+                self.mencoderProcess = subprocess.Popen(self.mencoderCmd[self.currentPass], stdin=None, stdout=stdoutChildSockMenc.fileno(), stderr=stderrChildSockMenc.fileno())
+            except OSError, e:
+
+                # if this fails it will be detected and reported on elsewhere
+                self.lastMencoderStderr = "Failed spawning process: %s" % e
+                self.mencoderProcessError = True
+                pass
+                
 
             self.setRunningStatus( "Encoder started." )
             
             # these need to be initialized for the loop below
-            self.mythTranscodeRunning = (self.mythTranscodeProcess.poll() == None)
-            self.mencoderRunning = (self.mencoderProcess.poll() == None)
+            self.mythtranscodeRunning = True
+            self.mencoderRunning = True
         
             stopRunning = False
             while not stopRunning:
 
-                # print "encoder thread heartbeat"
+                print "encoder thread heartbeat"
 
                 self.parseSubprocessOutput()
                 
                 # if a process *was* running, but is not running now, we should decide if its an error and report back to the user
-                if self.mythTranscodeRunning:
-                    self.mythTranscodeRunning = (self.mythTranscodeProcess.poll() == None)
+                if self.mythtranscodeRunning:
                     
-                    if  ( not self.mythTranscodeRunning ) and self.mythTranscodeProcess.returncode != 0:                   
-                        self.reportSubprocessFailure( self.prefs['mythtranscodePath'], self.lastStderr )
+                    if self.mythtranscodeProcess == False:
+                        self.mythtranscodeRunning = False
+                    else:
+                        self.mythtranscodeRunning = (self.mythtranscodeProcess.poll() == None)
+                    
+                    if ( not self.mythtranscodeRunning ) and ( self.mythtranscodeProcessError or self.mythtranscodeProcess.returncode != 0 ):
+                        self.reportSubprocessFailure( self.prefs['mythtranscodePath'], self.lastMythtranscodeStderr )
                 
                 if self.mencoderRunning:
-                    self.mencoderRunning = (self.mencoderProcess.poll() == None)                    
+
+                    if self.mencoderProcess == False:
+                        self.mencoderRunning = False
+                    else:
+                        self.mencoderRunning = (self.mencoderProcess.poll() == None)                    
                     
-                    if ( not self.mencoderRunning ) and self.mencoderProcess.returncode != 0:
-                        self.reportSubprocessFailure( self.prefs['mencoderPath'], self.lastStderr )
+                    if ( not self.mencoderRunning ) and ( self.mencoderProcessError or self.mencoderProcess.returncode != 0 ):
+                        self.reportSubprocessFailure( self.prefs['mencoderPath'], self.lastMencoderStderr )
                         
                 # end the pass if mythtranscode and mencoder are not both running, or if we've been told to abort
-                endPass = (not ( self.mythTranscodeRunning and self.mencoderRunning ) ) or self.doCommand == "abort"
+                endPass = (not ( self.mythtranscodeRunning and self.mencoderRunning ) ) or self.doCommand == "abort"
 
                 if endPass:
 
                     self.setRunningStatus( "Waiting for all subprocesses to end" )
 
-                    print "alert - self.mencoderRunning",self.mencoderRunning,"self.mythTranscodeRunning",self.mythTranscodeRunning
+                    print "alert - self.mencoderRunning",self.mencoderRunning,"self.mythtranscodeRunning",self.mythtranscodeRunning
                     
                     # wait 5 seconds for things to normalize
                     for sec in range(15):
                         
-                        # read again
-                        self.mythTranscodeRunning = (self.mythTranscodeProcess.poll() == None)
-                        self.mencoderRunning = (self.mencoderProcess.poll() == None)
+                        # if the process is dead (subprocess.Popen threw an exception and it never returned) or if the subprocess is terminated
+                        if self.mythtranscodeProcess == False or self.mythtranscodeProcess.poll() == None:
+                            self.mythtranscodeRunning = False
+
+                        if self.mencoderProcess == False or self.mencoderProcess.poll() == None:
+                            self.mencoderRunning = False
                         
-                        if not self.mythTranscodeRunning and not self.mencoderRunning:
+                        if not self.mythtranscodeRunning and not self.mencoderRunning:
                             print "all subprocesses dead"
                             stopRunning = True
                             break
@@ -1357,7 +1418,7 @@ class encoderThread(threading.Thread):
                         if sec > 3:
 
                             # read again
-                            self.mythTranscodeRunning = (self.mythTranscodeProcess.poll() == None)
+                            self.mythtranscodeRunning = (self.mythtranscodeProcess.poll() == None)
                             self.mencoderRunning = (self.mencoderProcess.poll() == None)
 
                             self.setRunningStatus( "Actively stopping subprocesses" )
@@ -1368,12 +1429,12 @@ class encoderThread(threading.Thread):
                             else:
                                 usesig = signal.SIGTERM
 
-                            if self.mythTranscodeRunning:
+                            if self.mythtranscodeRunning:
                                 print "aggr, mencoder died but mythtranscode continues to run.  killing it."
-                                os.kill(self.mythTranscodeProcess.pid, usesig)
+                                os.kill(self.mythtranscodeProcess.pid, usesig)
 
                             if self.mencoderRunning:
-                                print "aggr, the 5 sec wait, mythTranscode died but mencoder continues to run.  killing it."
+                                print "aggr, the 5 sec wait, mythtranscode died but mencoder continues to run.  killing it."
                                 os.kill(self.mencoderProcess.pid, usesig)
 
 
@@ -1402,23 +1463,24 @@ class encoderThread(threading.Thread):
         # set the message first so parent threads dont get a failed state when theres no message set
         self.failedMessage = "%s returned a failure code in pass %d\n\nDetails:\n%s" % (processName, self.currentPass, failureDetails)
         self.state = "failed"
-        print "subprocess failure",self.failedMessage
 
+        print "subprocess failure",self.failedMessage
+        
         
     def clearFifoDir(self):
         print "clearFifoDir"
 
         # get directory for our fifos to live in
-        self.mythTranscodeFifoDir = '/tmp/mythrip-%d-fifo' % self.threadID
+        self.mythtranscodeFifoDir = '/tmp/mythrip-%d-fifo' % self.threadID
 
         # we'll try killing that fifo dir 10 times.
         for sec in range(10):
             
             self.setRunningStatus( "Waiting for mythtranscode fifos" )
 
-            if os.path.isdir(self.mythTranscodeFifoDir):
+            if os.path.isdir(self.mythtranscodeFifoDir):
                 try:
-                    shutil.rmtree(self.mythTranscodeFifoDir)
+                    shutil.rmtree(self.mythtranscodeFifoDir)
                 except Exception, e:
                     self.sendEncoderEvent("failed","Could not remove stale fifo directory: %s" % e)
                     self.state = "aborted"
@@ -1429,7 +1491,7 @@ class encoderThread(threading.Thread):
             time.sleep(1)
 
         try:
-            os.mkdir(self.mythTranscodeFifoDir)
+            os.mkdir(self.mythtranscodeFifoDir)
         except Exception, e:
             self.sendEncoderEvent("failed","Failed creating fifo directories: %s" % e)
             self.state = "aborted"
@@ -1460,7 +1522,7 @@ class encoderThread(threading.Thread):
             if len(newstdout):
                 # if this is mythtranscode, we need to gather up all the output so we may parse out video and audio parameters
                 if mtGathering:
-                    self.mythTranscodeStdout += newstdout
+                    self.mythtranscodeStdout += newstdout
                     
                 # parse mencoder output for the queue listctrl
                 if name == "menc":
@@ -1492,7 +1554,11 @@ class encoderThread(threading.Thread):
                     
             if len(newstderr):
                 
-                self.lastStderr = newstderr
+                if name == 'menc':
+                    self.lastMencoderStderr = newstderr
+                else:
+                    self.lastMythtranscodeStderr = newstderr
+                    
 
                 # print "STDERR %s-------------------------------------------\n%s\n------------------------------------------------\n" % (name,newstderr)
                 pass
@@ -1505,8 +1571,8 @@ class encoderThread(threading.Thread):
         # now fire up mencoder reading from mythtranscode's fifo
         mencoderCmd = [self.prefs['mencoderPath'],
                        '-noskip','-idx',
-                       os.path.join(self.mythTranscodeFifoDir, 'vidout'),
-                       '-audiofile', os.path.join(self.mythTranscodeFifoDir,'audout'),
+                       os.path.join(self.mythtranscodeFifoDir, 'vidout'),
+                       '-audiofile', os.path.join(self.mythtranscodeFifoDir,'audout'),
                        '-demuxer','20','-audio-demuxer','20',
                        '-rawvideo','w=%s:h=%s:fps=%s' % (self.vidWidth, self.vidHeight, self.vidFramerate),
                        '-rawaudio','rate=%s:channels=%s' % (self.audioRate, self.audioChannels),
@@ -1579,31 +1645,45 @@ class encoderThread(threading.Thread):
         print "Starting mythtranscode!"
 
         # fire up mythtranscode turbo=1:subq=1:frameref=1
-        mythTranscodeCmd = [self.prefs['mythtranscodePath'],
+        self.mythtranscodeCmd = [self.prefs['mythtranscodePath'],
                             '--showprogress',
                             '-p','autodetect',
                             '-c',str(self.program.chanid),
                             '-s',self.program.recstartts.strftime('%Y-%m-%dT%H:%M:%S'),
-                            '-f',self.mythTranscodeFifoDir,
+                            '-f',self.mythtranscodeFifoDir,
                             '--verbose','libav' # we pull video parameters out of this verbose output mode
                             ]
         
         if self.prefs["useMythCutlist"] == 0:
-            mythTranscodeCmd.append('--honorcutlist')
+            self.mythtranscodeCmd.append('--honorcutlist')
 
-        print mythTranscodeCmd        
+        print self.mythtranscodeCmd        
         
         # use sockets for the subprocess file objects so we can read from stdout/stderr in a non-blocking fashion
         self.stdoutSockMT, stdoutChildSockMT = socket.socketpair() 
         self.stderrSockMT, stderrChildSockMT = socket.socketpair() 
         self.stdoutSockMT.settimeout(0.1)
         self.stderrSockMT.settimeout(0.1)
-        self.mythTranscodeProcess = subprocess.Popen(mythTranscodeCmd, stdin=None, stdout=stdoutChildSockMT.fileno(), stderr=stderrChildSockMT.fileno())
+        
+        self.mythtranscodeProcessError = False
+        try:
+            self.mythtranscodeProcess = subprocess.Popen(self.mythtranscodeCmd, stdin=None, stdout=stdoutChildSockMT.fileno(), stderr=stderrChildSockMT.fileno())
+        except OSError, e:
+            # if this fails it will be detected and reported on elsewhere
+            self.lastMythtranscodeStderr = "Failed spawning process: %s" % e
+            self.mythtranscodeProcessError = True
+            pass
 
         # 5 second loop
         for i in range(10):
+
+            # mythtranscode isnt even running.. just bail
+            if self.mythtranscodeProcess == False or self.mythtranscodeProcess.poll() == None:
+                break
+
             print "waiting for fifo dir %d" % i
-            if self.isFifo( os.path.join(self.mythTranscodeFifoDir,'vidout') ):
+            fifoPresent = self.isFifo( os.path.join(self.mythtranscodeFifoDir,'vidout') )
+            if fifoPresent:
                 print "fifo present!"
                 break
 
