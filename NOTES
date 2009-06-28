@@ -8,6 +8,6 @@ dependencies:
 
 todo before release:
   
-  support for more than just 1 or 2 channels of audio (maybe not before release?)
+  codec & audio improvements
 
-  figure out where we want to keep our passlogfile 
+  
