@@ -307,7 +307,7 @@ class mainFrame(wx.Frame):
                            { 'short': '-t', 'long': '--threadcount', 'action': 'store', 'dest': 'threadCount', 'default': '2', 'help' : 'Max Simultaneous Encoding Jobs' },
                            { 'short': '-r', 'long': '--removecompleted', 'action': 'store', 'dest': 'removeCompleted', 'default': '1', 'help' : 'Remove Completed Job Choice Index' },                       
                            { 'short': '-s', 'long': '--savepath', 'action': 'store', 'dest': 'savePath', 'default': os.path.expanduser('~/Desktop'), 'help' : 'Save Encodings to Path' }, 
-                           { 'short': '-x', 'long': '--filetemplate', 'action': 'store', 'dest': 'fileTemplate', 'default': '%s - %t.%x', 'help' : 'Output File Naming Template' },
+                           { 'short': '-x', 'long': '--filetemplate', 'action': 'store', 'dest': 'fileTemplate', 'default': '%s - %e - %i', 'help' : 'Output File Naming Template' },
                            { 'short': '-d', 'long': '--debuglevel', 'action': 'store', 'dest': 'debugLevel', 'default': defaultLogLevel, 'help': 'Debug Level: CRITICAL, FATAL, ERROR, WARNING, INFO or DEBUG'}
                            )
         # load preferences from disk
