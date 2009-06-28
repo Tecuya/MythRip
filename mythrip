@@ -20,6 +20,9 @@ import stat
 # begin wxGlade: extracode
 # end wxGlade
 
+###############################################################################################################
+## Global App Stuff
+
 # for now i just snag the logger from the mythtv bindings.. maybe it'd be better to use my own.. i dunno
 log = mythtv.log
 DEBUG = mythtv.DEBUG
@@ -32,7 +35,21 @@ CRITICAL = mythtv.CRITICAL
 # string defining the default log level, used by optparse 
 defaultLogLevel = 'WARNING'
 
+# our version
 mythripVersionString = "MythRip v0.1"
+
+# value from prefs: ["oac name", (bool) supports option string, "optionstringname"]
+audioCodecDict = {0: ['copy',False],
+                  1: ['pcm',False],
+                  2: ['mp3lame',True,'-lameopts','preset=medium'],
+                  3: ['lavc',True,'-lavcopts','acodec=flac'] }
+            
+videoCodecDict = {0: ['copy',False],
+                  1: ['xvid',True,'-xvidencopts','fixed_quant=6','fixed_quant=6'],
+                  2: ['x264',True,'-x264encopts','subq=1:frameref=1:bitrate=600','subq=6:frameref=15:partitions=all:me=umh:bitrate=600',''],
+                  3: ['lavc',True,'-lavcopts','vcodec=mpeg4:mdb=1:vbitrate=600','vcodec=mpeg4:mdb=1:vbitrate=600']}
+
+###############################################################################################################
 
 class threadDetailFrame(wx.Frame):
     def __init__(self, *args, **kwds):
@@ -69,7 +86,7 @@ class threadDetailFrame(wx.Frame):
         # start the updater timer
         self.genericTickingTimer = genericTickingTimer()
         self.genericTickingTimer.setFrameHandle(self)
-        self.genericTickingTimer.Start(milliseconds=2000)
+        self.genericTickingTimer.Start(milliseconds=1000)
         
     def __set_properties(self):
         # begin wxGlade: threadDetailFrame.__set_properties
@@ -278,6 +295,7 @@ class mainFrame(wx.Frame):
                            { 'short': '-M', 'long': '--playerpath', 'action': 'store', 'dest': 'playerPath', 'default': '/usr/bin/mplayer', 'help': 'Full path to player'},
                            { 'short': '-z', 'long': '--mythtranscodepath', 'action': 'store', 'dest': 'mythtranscodePath', 'default': '/usr/bin/mythtranscode', 'help': 'Full path to mythtranscode'},
                            { 'short': '-c', 'long': '--container', 'action': 'store', 'dest': 'containerFormat', 'default': '0', 'help' : 'Container format' },
+                           { 'short': '-U', 'long': '--extraflags', 'action': 'store', 'dest': 'extraFlags', 'default': '', 'help' : 'Extra mencoder flags' },
                            { 'short': '-v', 'long': '--videocodec', 'action': 'store', 'dest': 'videoCodec', 'default': '0', 'help' : 'Video Codec Choice Index' },
                            { 'short': '-1', 'long': '--videocodecopts', 'action': 'store', 'dest': 'videoFirstPassOpts', 'default': '', 'help' : 'Video Codec Option String - Pass 1' },
                            { 'short': '-2', 'long': '--videocodecoptspass2', 'action': 'store', 'dest': 'videoSecondPassOpts', 'default': '', 'help' : 'Video Codec Option String - Pass 2' },
@@ -285,7 +303,7 @@ class mainFrame(wx.Frame):
                            { 'short': '-T', 'long': '--twopass', 'action': 'store', 'dest': 'twoPassVideo', 'default': '0', 'help' : 'Two Pass Video Choice Index' },
                            { 'short': '-a', 'long': '--audiocodec', 'action': 'store', 'dest': 'audioCodec', 'default': '0', 'help' : 'Audio Codec Choice Index' },
                            { 'short': '-A', 'long': '--audiocodecopts', 'action': 'store', 'dest': 'audioCodecOptions', 'default': '', 'help' : 'Audio Codec Option String' },
-                           { 'short': '-F', 'long': '--audiofilter', 'action': 'store', 'dest': 'audioFilter', 'default': '', 'help' : 'Audio Filter String' },
+                           { 'short': '-F', 'long': '--audiofilter', 'action': 'store', 'dest': 'audioFilter', 'default': 'volnorm', 'help' : 'Audio Filter String' },
                            { 'short': '-t', 'long': '--threadcount', 'action': 'store', 'dest': 'threadCount', 'default': '2', 'help' : 'Max Simultaneous Encoding Jobs' },
                            { 'short': '-r', 'long': '--removecompleted', 'action': 'store', 'dest': 'removeCompleted', 'default': '1', 'help' : 'Remove Completed Job Choice Index' },                       
                            { 'short': '-s', 'long': '--savepath', 'action': 'store', 'dest': 'savePath', 'default': os.path.expanduser('~/Desktop'), 'help' : 'Save Encodings to Path' }, 
@@ -577,6 +595,8 @@ class mainFrame(wx.Frame):
         
     def loadPrefsFromDisk(self):
         
+        log.Msg(INFO, "Loading preferences from disk")
+
         # load the prefs from disk to self.prefs        
         self.prefs = self.readPrefsFromDisk()
         
@@ -817,7 +837,7 @@ class mainFrame(wx.Frame):
         event.Skip()
 
     def onItemRightClick(self, event): # wxGlade: mainFrame.<event_handler>
-        print "Event handler `onItemRightClick' not implemented"
+        # print "Event handler `onItemRightClick' not implemented"
         event.Skip()
 
 # end of class mainFrame
@@ -943,7 +963,7 @@ class encoderQueueFrame(wx.Frame):
         # start the updater timer
         self.genericTickingTimer = genericTickingTimer()
         self.genericTickingTimer.setFrameHandle(self)
-        self.genericTickingTimer.Start(milliseconds=2000)
+        self.genericTickingTimer.Start(milliseconds=1000)
 
     def __set_properties(self):
         # begin wxGlade: encoderQueueFrame.__set_properties
@@ -1623,17 +1643,31 @@ class encoderThread(threading.Thread):
                        '-rawvideo','w=%s:h=%s:fps=%s' % (self.vidWidth, self.vidHeight, self.vidFramerate),
                        '-rawaudio','rate=%s:channels=%s' % (self.audioRate, self.audioChannels),
                        '-demuxer','26']
+        
+        ### misc
+        if len(self.prefs['extraFlags']):
+            mencoderCmd.extend(self.prefs['extraFlags'].split(" "))
 
+        
         ### Audio
         
         # dont process sound on first pass of a two-pass encode
-        # if twoPass and passNumber == 1:
-        # mencoderCmd.extend( ['-nosound'] )
-        # else:
-        mencoderCmd.extend( ['-oac','copy'] )
+        if self.twoPass and self.currentPass == 1:
 
-        if len(self.prefs['audioFilter']):
-            mencoderCmd.extend( ['-af',self.prefs['audioFilter']] )
+            mencoderCmd.extend( ['-oac','copy'] )
+
+        else:
+
+            # load the info for the selected codec
+            useAudioCodec = audioCodecDict[ int(self.prefs['audioCodec']) ]
+
+            mencoderCmd.extend( ['-oac', useAudioCodec[0]] )
+
+            if useAudioCodec[1] and self.prefs['audioCodecOptions']:
+                mencoderCmd.extend( [useAudioCodec[2], self.prefs['audioCodecOptions']] )
+
+            if len(self.prefs['audioFilter']):
+                mencoderCmd.extend( ['-af',self.prefs['audioFilter']] )
             
         ### Video
 
@@ -1651,16 +1685,17 @@ class encoderThread(threading.Thread):
                 encOpts = self.prefs['videoFirstPassOpts']
             else:
                 encOpts = self.prefs['videoSecondPassOpts']
+                   
+        useVideoCodec = videoCodecDict[ self.prefs['videoCodec'] ]
 
+        mencoderCmd.extend( ['-ovc', useVideoCodec[0] ] )
+        
+        if useVideoCodec[1]:
+            if self.currentPass == 1:                
+                mencoderCmd.extend( [useVideoCodec[2], self.prefs['videoFirstPassOpts']] )
+            elif self.currentPass == 2:
+                mencoderCmd.extend( [useVideoCodec[2], self.prefs['videoSecondPassOpts']] )
                 
-        # 0 is xvid
-        if self.prefs['videoCodec'] == 0:                 
-            mencoderCmd.extend( ['-ovc','xvid','-xvidencopts',encOpts] )
-            
-        # 1 is x264
-        elif self.prefs['videoCodec'] == 1:            
-            mencoderCmd.extend( ['-ovc','x264','-x264encopts',encOpts] )  # :pass=1', # 'subq=5:8x8dct:frameref=2:bframes=3:b_pyramid:weight_b',
-            
         if len(self.prefs['videoFilter']):            
             mencoderCmd.extend( ['-vf',self.prefs['videoFilter']] )
 
@@ -1836,24 +1871,26 @@ class preferencesFrame(wx.Frame):
         self.useMythCutlistChoice = wx.Choice(self.preferencesMythTVPane, -1, choices=["Yes", "No"])
         self.mythtvRecordingPath = wx.StaticText(self.preferencesMythTVPane, -1, "MythTV Recording Path: ")
         self.mythtvRecordingText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
-        self.FileOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "File Options:")
+        self.FileOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Global Options:")
         self.containerFormatLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
         self.containerFormatChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["avi", "mkv"])
+        self.extraFlagsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Extra mencoder Flags:")
+        self.extraFlagsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
         self.videoOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Options: ")
         self.videoCodecLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec: ")
-        self.videoCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["xvid", "x264"])
+        self.videoCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["copy", "xvid", "x264", "lavc"])
         self.twoPassVideoLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Two-Pass Video: ")
         self.twoPassVideoChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["Yes", "No"])
-        self.videoFirstPassOptsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "First Pass Options (): ")
+        self.videoFirstPassOptsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "First Pass Options: ")
         self.videoFirstPassOptsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
-        self.videoSecondPassOptsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Second Pass Options (): ")
+        self.videoSecondPassOptsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Second Pass Options: ")
         self.videoSecondPassOptsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
         self.videoFilterStringLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Filter String (-vf): ")
         self.videoFilterStringText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
         self.audioOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Options:")
         self.audioCodecLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec: ")
-        self.audioCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["passthrough", "mp3lame", "ogg", "whatever"])
-        self.audioCodecOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec Options ():")
+        self.audioCodecChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["copy", "pcm", "mp3lame", "lavc"])
+        self.audioCodecOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Codec Options:")
         self.audioCodecOptionsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
         self.audioFilterLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Audio Filter String (-af): ")
         self.audioFilterText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
@@ -1865,6 +1902,7 @@ class preferencesFrame(wx.Frame):
         self.savePathPicker = wx.DirPickerCtrl(self.preferencesFilesPane, -1)
         self.fileTemplateLabel = wx.StaticText(self.preferencesFilesPane, -1, "File Naming Template: ")
         self.fileTemplateText = wx.TextCtrl(self.preferencesFilesPane, -1, "")
+        self.fileTemplateHelpLabel = wx.StaticText(self.preferencesFilesPane, -1, "%s: Title\n%e: Subtitle\n%d: Description\n%c: Category\n%C: Channel number\n%T: Start time\n%E: End time\n%i: Series ID\n%h: Hostname")
         self.mencoderPathLabel = wx.StaticText(self.preferencesExternalProgramsPane, -1, "Path to mencoder: ")
         self.mencoderPathText = wx.TextCtrl(self.preferencesExternalProgramsPane, -1, "")
         self.playerPathLabel = wx.StaticText(self.preferencesExternalProgramsPane, -1, "Path to video player: ")
@@ -1877,6 +1915,8 @@ class preferencesFrame(wx.Frame):
         self.__set_properties()
         self.__do_layout()
 
+        self.Bind(wx.EVT_CHOICE, self.onVideoCodecChange, self.videoCodecChoice)
+        self.Bind(wx.EVT_CHOICE, self.onAudioCodecChange, self.audioCodecChoice)
         self.Bind(wx.EVT_BUTTON, self.onCancelButton, self.preferencesCancelButton)
         self.Bind(wx.EVT_BUTTON, self.onOKButton, self.preferencesOKButton)
         # end wxGlade
@@ -1892,6 +1932,7 @@ class preferencesFrame(wx.Frame):
                         'useMythCutlist': ['Choice', self.useMythCutlistChoice],
                         'mythtvRecordingPath': ['TextCtrl', self.mythtvRecordingText],
                         'containerFormat': ['Choice', self.containerFormatChoice],
+                        'extraFlags': ['TextCtrl', self.extraFlagsText],
                         'videoCodec': ['Choice', self.videoCodecChoice],
                         'videoFirstPassOpts': ['TextCtrl', self.videoFirstPassOptsText],
                         'videoSecondPassOpts': ['TextCtrl', self.videoSecondPassOptsText],
@@ -1927,9 +1968,9 @@ class preferencesFrame(wx.Frame):
         preferencesSizer = wx.BoxSizer(wx.VERTICAL)
         preferencesButtonSizer = wx.BoxSizer(wx.HORIZONTAL)
         externalProgramsSizer = wx.FlexGridSizer(4, 2, 0, 0)
-        preferencesFilesSizer = wx.FlexGridSizer(6, 2, 0, 0)
+        preferencesFilesSizer = wx.FlexGridSizer(3, 2, 0, 0)
         preferencesQueueSIzer = wx.FlexGridSizer(2, 2, 0, 0)
-        preferencesEncodersSizer = wx.FlexGridSizer(7, 2, 0, 0)
+        preferencesEncodersSizer = wx.FlexGridSizer(8, 2, 0, 0)
         preferencesMythTVSizer = wx.FlexGridSizer(9, 2, 0, 0)
         preferencesMythTVSizer.Add(self.mysqlSettingsLabel, 0, 0, 0)
         preferencesMythTVSizer.Add((20, 20), 0, 0, 0)
@@ -1955,6 +1996,8 @@ class preferencesFrame(wx.Frame):
         preferencesEncodersSizer.Add((10, 10), 0, 0, 0)
         preferencesEncodersSizer.Add(self.containerFormatLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesEncodersSizer.Add(self.containerFormatChoice, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.extraFlagsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.extraFlagsText, 0, wx.EXPAND, 0)
         preferencesEncodersSizer.Add(self.videoOptionsLabel, 0, wx.TOP|wx.ALIGN_BOTTOM, 10)
         preferencesEncodersSizer.Add((20, 20), 0, 0, 0)
         preferencesEncodersSizer.Add(self.videoCodecLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
@@ -1987,6 +2030,8 @@ class preferencesFrame(wx.Frame):
         preferencesFilesSizer.Add(self.savePathPicker, 0, wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesFilesSizer.Add(self.fileTemplateLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesFilesSizer.Add(self.fileTemplateText, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesFilesSizer.Add((20, 20), 0, 0, 0)
+        preferencesFilesSizer.Add(self.fileTemplateHelpLabel, 0, 0, 0)
         self.preferencesFilesPane.SetSizer(preferencesFilesSizer)
         preferencesFilesSizer.AddGrowableCol(1)
         externalProgramsSizer.Add(self.mencoderPathLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
@@ -2061,6 +2106,49 @@ class preferencesFrame(wx.Frame):
         self.Hide()
         event.Skip()
         
+    def onVideoCodecChange(self, event): # wxGlade: preferencesFrame.<event_handler>
+
+        selection = self.videoCodecChoice.GetCurrentSelection()
+        videoCodec = videoCodecDict[ selection ]
+        
+        if videoCodec[1]:
+            showParens = ' (%s)' % videoCodec[2]
+        else:
+            showParens = ''
+            
+        self.videoFirstPassOptsLabel.SetLabel('First Pass Options%s:' % showParens)
+        self.videoSecondPassOptsLabel.SetLabel('Second Pass Options%s:' % showParens)
+        
+        if videoCodec[1]:
+            self.videoFirstPassOptsText.SetValue( videoCodec[3] )
+            self.videoSecondPassOptsText.SetValue( videoCodec[4] )
+        else:
+            self.videoFirstPassOptsText.SetValue( '' )
+            self.videoSecondPassOptsText.SetValue( '' )
+
+        self.preferencesEncodersPane.Fit()
+        event.Skip()
+
+    def onAudioCodecChange(self, event): # wxGlade: preferencesFrame.<event_handler>
+
+        selection = self.audioCodecChoice.GetCurrentSelection()
+        audioCodec = audioCodecDict[ selection ]
+        
+        if audioCodec[1]:
+            showParens = ' (%s)' % audioCodec[2]
+        else:
+            showParens = ''
+            
+        self.audioCodecOptionsLabel.SetLabel('Audio Codec Options%s:' % showParens)
+        
+        if audioCodec[1]:
+            self.audioCodecOptionsText.SetValue( audioCodec[3] )
+        else:
+            self.audioCodecOptionsText.SetValue( '' )
+
+        self.preferencesEncodersPane.Fit()
+        event.Skip()
+
 # end of class preferencesFrame
 
 
