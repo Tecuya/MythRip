@@ -10,16 +10,8 @@ todo before release:
   
   python bindings are hacked to work with my proto version .. what to do?
 
-  prefs dialog doesnt revert to old settings when you hit cancel
-
-  when new options are added to optionMap / prefMap, they are not automatically added to the users .mythriprc file
-
   support for more than just 1 or 2 channels of audio (maybe not before release?)
 
   figure out where we want to keep our passlogfile 
 
-  threadDetailFrames - what happens when a frame is destroyed..?
-
   logging support
-
-  scan mplayer paths

@@ -338,7 +338,7 @@ class Program:
 		self.audio_props = data[43]
 		self.video_props = data[44]
 
-		# save the data, as it's useful in DELETE_RECORDINGS queries
+		# save the raw data, as it's useful in DELETE_RECORDINGS queries
 		self.data = data
 
 		#  I commented these because my backend does not seem to return this many records.. fixme
