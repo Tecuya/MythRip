@@ -1699,8 +1699,6 @@ class encoderThread(threading.Thread):
         if len(self.prefs['videoFilter']):            
             mencoderCmd.extend( ['-vf',self.prefs['videoFilter']] )
 
-        # debugging
-        mencoderCmd.extend( ['-frames','200'] )
 
         if self.twoPass:
 
