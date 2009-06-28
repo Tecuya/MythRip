@@ -53,6 +53,13 @@ class threadDetailFrame(wx.Frame):
         
         self.Bind(wx.EVT_SIZE, self.onResize, self)
         
+        self.threadID = 0
+
+        # start the updater timer
+        self.genericTickingTimer = genericTickingTimer()
+        self.genericTickingTimer.setFrameHandle(self)
+        self.genericTickingTimer.Start(milliseconds=2000)
+        
     def __set_properties(self):
         # begin wxGlade: threadDetailFrame.__set_properties
         self.SetTitle("Thread Details")
@@ -89,6 +96,7 @@ class threadDetailFrame(wx.Frame):
 
     def setThreadID(self, threadID):        
         self.encoderThread = self.GetParent().threads[ threadID ] 
+        self.threadID = threadID
         self.refreshThreadInfo()
         
     def refreshThreadInfo(self):
@@ -98,14 +106,17 @@ class threadDetailFrame(wx.Frame):
         if self.encoderThread.mencoderCmd.has_key(2):
             self.threadMencoderPass2Cmd.SetLabel( " ".join(self.encoderThread.mencoderCmd[2]) )        
             
-        if len(self.encoderThread.mythtranscodeCmd):
+        if self.encoderThread.mythtranscodeCmd and len(self.encoderThread.mythtranscodeCmd):
             self.threadMythtranscodeCmd.SetLabel(" ".join(self.encoderThread.mythtranscodeCmd))
 
         if self.encoderThread.state in ["failed","failedAndAcknowledged"]:
             self.threadMessagesText.SetLabel( self.encoderThread.failedMessage )
 
-    def refreshLayout(self):
-        self.refreshThreadInfo() # when i dont call this bad things happen - wrap() calls seem like they can only make text wrap thinner, not wider.. 
+        self.threadDetailInformation.SetLabel( str(self.threadID) )
+
+    def refreshAll(self):
+        self.refreshThreadInfo()
+
         width = self.GetSizeTuple()[0]
         self.threadMencoderPass1Cmd.Wrap( width )
         self.threadMencoderPass2Cmd.Wrap( width )
@@ -123,8 +134,11 @@ class threadDetailFrame(wx.Frame):
         event.Skip()
 
     def onResize(self, event):
-        self.refreshLayout()
+        self.refreshAll()
         event.Skip()
+
+    def onTimerTick(self):
+        self.refreshAll()
 
 # end of class threadDetailFrame
 
@@ -627,6 +641,8 @@ class mainFrame(wx.Frame):
         else:
             actiontitle = "delete"
 
+        reloadRecordings = False
+
         if progCount:
 
             if progCount == 1:
@@ -640,9 +656,12 @@ class mainFrame(wx.Frame):
                 
                 for program in progList:                    
                     self.mythTV.deleteRecording(program, forget)                                        
-
-        # reload the recording list
-        self.loadRecordingsFromMyth()
+                
+                reloadRecordings = True
+                    
+        if reloadRecordings:
+            # reload the recording list
+            self.loadRecordingsFromMyth()
         
 
     ###########################################################################
@@ -849,7 +868,7 @@ class encoderQueueFrame(wx.Frame):
         self.encoderQueueFrameToolbar.AddLabelTool(toolbarUp, "Up", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-go-up.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Move selected thread(s) up", "")
         self.encoderQueueFrameToolbar.AddLabelTool(toolbarDown, "Down", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/gtk-go-down.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Move selected thread(s) down", "")
         self.encoderQueueFrameToolbar.AddSeparator()
-        self.encoderQueueFrameToolbar.AddLabelTool(toolbarCleanup, "Clean Up", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/edit-clear.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Remove all completed and aborted threads", "")
+        self.encoderQueueFrameToolbar.AddLabelTool(toolbarCleanup, "Clean Up", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/edit-clear.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Remove all completed, failed and aborted threads", "")
         self.encoderQueueFrameToolbar.AddSeparator()
         self.encoderQueueFrameToolbar.AddLabelTool(toolbarPrefs, "Preferences", wx.Bitmap("/usr/share/icons/gnome/32x32/actions/document-properties.png", wx.BITMAP_TYPE_ANY), wx.NullBitmap, wx.ITEM_NORMAL, "Show queue preferences", "")
         # Tool Bar end
@@ -895,13 +914,11 @@ class encoderQueueFrame(wx.Frame):
         
         # connect up a handler to update the GUI upon events from the encoder threads
         EVT_ENCODER(self, self.onEncoderEvent)    
-        
-        self.threadDetailFrames = {}
-        
+                
         # start the updater timer
-        self.encoderQueueUpdateTimer = encoderQueueUpdateTimer()
-        self.encoderQueueUpdateTimer.setFrameHandle(self)
-        self.encoderQueueUpdateTimer.Start(milliseconds=2000)
+        self.genericTickingTimer = genericTickingTimer()
+        self.genericTickingTimer.setFrameHandle(self)
+        self.genericTickingTimer.Start(milliseconds=2000)
 
     def __set_properties(self):
         # begin wxGlade: encoderQueueFrame.__set_properties
@@ -1021,7 +1038,7 @@ class encoderQueueFrame(wx.Frame):
         for idx in range(len(self.threadOrder)):
             threadID = self.threadOrder[idx]
 
-            if self.threads[threadID].state in ("aborted","completed"):
+            if self.threads[threadID].state in ("aborted","completed","failed","failedAndAcknowledged"):
                 
                 nukeThreads.append(threadID)
                 nukeThreadOrder.append(idx)
@@ -1067,7 +1084,7 @@ class encoderQueueFrame(wx.Frame):
         self.resizeEncoderQueueListCtrl()
 
 
-    # called from the encoderQueueUpdateTimer
+    # called from the genericTickingTimer
     def onTimerTick(self):
         
         # 0 is yes
@@ -1138,15 +1155,6 @@ class encoderQueueFrame(wx.Frame):
         self.encoderQueueListCtrl.SetStringItem(listCtrlIndex, 3, event.listMessage)
 
         self.resizeEncoderQueueListCtrl()
-
-        # refresh any thread detail frames that are open for this thread
-        if self.threadDetailFrames.has_key( event.threadID ):
-            try:
-                self.threadDetailFrames[ event.threadID ].refreshLayout()
-                
-            except wx.PyDeadObjectError: # can't do this in C++ heh
-                print "deleting thread reference to detail frame"
-                del self.threadDetailFrames[ event.threadID ]
             
         event.Skip()
 
@@ -1164,17 +1172,6 @@ class encoderQueueFrame(wx.Frame):
 
     def onToolbarCleanup(self, event): # wxGlade: encoderQueueFrame.<event_handler>        
         self.removeCompletedItems()
-        event.Skip()
-
-    def onContextMenuSelection(self, event):        
-        selectedMenuItem = self.contextMenuEntriesById[ event.GetId() ]
-        
-        if selectedMenuItem == "View Details":
-            threadID = self.encoderQueueListCtrl.GetItemData( self.encoderQueueListCtrl.GetFirstSelected() )
-            self.threadDetailFrames[ threadID ] = threadDetailFrame(parent=self)
-            self.threadDetailFrames[ threadID ].setThreadID(threadID)        
-            self.threadDetailFrames[ threadID ].Show()
-
         event.Skip()
 
     def onToolbarPrefs(self, event): # wxGlade: encoderQueueFrame.<event_handler>
@@ -1200,9 +1197,9 @@ class encoderQueueFrame(wx.Frame):
 
     def onThreadDetail(self, event): # wxGlade: encoderQueueFrame.<event_handler>
 
-        for threadID in self.getSelectedThreads():
+        for thread in self.getSelectedThreads():
             frame = threadDetailFrame(parent=self)
-            frame.setThreadID( threadID )
+            frame.setThreadID( thread.threadID )
             frame.Show()
         
         event.Skip()
@@ -1245,6 +1242,10 @@ class encoderThread(threading.Thread):
         # False indicates the process was never started
         self.mencoderProcess = False
         self.mythtranscodeProcess = False
+
+        # no errors have occurred.. yet..
+        self.mencoderProcessError = False
+        self.mythtranscodeProcessError = False
         
         # this is for scraping video parameters out of mythtranscode output
         self.mythtranscodeStdout = ""
@@ -1291,7 +1292,9 @@ class encoderThread(threading.Thread):
         for i in range(10): 
 
             # mythtranscode isnt even running.. just bail
-            if self.mythtranscodeProcess == False or self.mythtranscodeProcess.poll() == None:
+            if self.mythtranscodeProcessError == True or self.mythtranscodeProcess.poll() != None:
+                print self.mythtranscodeProcess.poll()
+                print "mythtranscode isnt even running, quit examing its output"
                 break
 
             self.parseSubprocessOutput(mtGathering = True)
@@ -1328,7 +1331,7 @@ class encoderThread(threading.Thread):
             self.currentPass = i+1
 
             # if we were told to abort, escape the loop
-            if self.doCommand == "abort" or self.state in ["failed","failedAndAcknowledged"]:
+            if self.doCommand == "abort" or self.state in ("failed","failedAndAcknowledged"):
                 print "aborted or failed; pass %d skipped" % self.currentPass
                 break
 
@@ -1366,10 +1369,12 @@ class encoderThread(threading.Thread):
             stopRunning = False
             while not stopRunning:
 
-                print "encoder thread heartbeat"
+                # print "encoder thread heartbeat"
 
                 self.parseSubprocessOutput()
                 
+                errorSent = False
+
                 # if a process *was* running, but is not running now, we should decide if its an error and report back to the user
                 if self.mythtranscodeRunning:
                     
@@ -1380,6 +1385,7 @@ class encoderThread(threading.Thread):
                     
                     if ( not self.mythtranscodeRunning ) and ( self.mythtranscodeProcessError or self.mythtranscodeProcess.returncode != 0 ):
                         self.reportSubprocessFailure( self.prefs['mythtranscodePath'], self.lastMythtranscodeStderr )
+                        errorSent = True
                 
                 if self.mencoderRunning:
 
@@ -1389,7 +1395,8 @@ class encoderThread(threading.Thread):
                         self.mencoderRunning = (self.mencoderProcess.poll() == None)                    
                     
                     if ( not self.mencoderRunning ) and ( self.mencoderProcessError or self.mencoderProcess.returncode != 0 ):
-                        self.reportSubprocessFailure( self.prefs['mencoderPath'], self.lastMencoderStderr )
+                        if not errorSent: # dont send another error report about mencoder if mythtranscode already failed
+                            self.reportSubprocessFailure( self.prefs['mencoderPath'], self.lastMencoderStderr )
                         
                 # end the pass if mythtranscode and mencoder are not both running, or if we've been told to abort
                 endPass = (not ( self.mythtranscodeRunning and self.mencoderRunning ) ) or self.doCommand == "abort"
@@ -1404,10 +1411,10 @@ class encoderThread(threading.Thread):
                     for sec in range(15):
                         
                         # if the process is dead (subprocess.Popen threw an exception and it never returned) or if the subprocess is terminated
-                        if self.mythtranscodeProcess == False or self.mythtranscodeProcess.poll() == None:
+                        if self.mythtranscodeProcess == False or self.mythtranscodeProcess.poll() != None:
                             self.mythtranscodeRunning = False
 
-                        if self.mencoderProcess == False or self.mencoderProcess.poll() == None:
+                        if self.mencoderProcess == False or self.mencoderProcess.poll() != None:
                             self.mencoderRunning = False
                         
                         if not self.mythtranscodeRunning and not self.mencoderRunning:
@@ -1430,11 +1437,11 @@ class encoderThread(threading.Thread):
                                 usesig = signal.SIGTERM
 
                             if self.mythtranscodeRunning:
-                                print "aggr, mencoder died but mythtranscode continues to run.  killing it."
+                                print "aggressive mode: mencoder died but mythtranscode continues to run.  killing it."
                                 os.kill(self.mythtranscodeProcess.pid, usesig)
 
                             if self.mencoderRunning:
-                                print "aggr, the 5 sec wait, mythtranscode died but mencoder continues to run.  killing it."
+                                print "aggressive mode: the 5 sec wait, mythtranscode died but mencoder continues to run.  killing it."
                                 os.kill(self.mencoderProcess.pid, usesig)
 
 
@@ -1450,7 +1457,7 @@ class encoderThread(threading.Thread):
         if self.doCommand == "abort":
             self.sendEncoderEvent( "stopped", "Aborted" )
             self.state = "aborted"
-        elif self.state in ["failed","failedAndAcknowledged"]:
+        elif self.state in ("failed","failedAndAcknowledged"):
             self.sendEncoderEvent( "stopped", "Failed (see thread detail window)" )
         else:
             self.sendEncoderEvent( "stopped", "Completed" )
@@ -1672,13 +1679,17 @@ class encoderThread(threading.Thread):
             # if this fails it will be detected and reported on elsewhere
             self.lastMythtranscodeStderr = "Failed spawning process: %s" % e
             self.mythtranscodeProcessError = True
-            pass
+
+            # dont bother with the fifo dir if the command failed
+            return
 
         # 5 second loop
         for i in range(10):
 
             # mythtranscode isnt even running.. just bail
-            if self.mythtranscodeProcess == False or self.mythtranscodeProcess.poll() == None:
+            if self.mythtranscodeProcess.poll() != None:
+                print self.mythtranscodeProcess.returncode
+                print "process is not running, fifo dir quit"
                 break
 
             print "waiting for fifo dir %d" % i
@@ -1750,13 +1761,13 @@ class encoderThread(threading.Thread):
 
     
 # a very simple timer to call a tick function in the encoder queue fraem
-class encoderQueueUpdateTimer(wx.Timer):
+class genericTickingTimer(wx.Timer):
     
-    def setFrameHandle(self,encoderQueueFrame):
-        self.encoderQueueFrame = encoderQueueFrame
+    def setFrameHandle(self,targetFrame):
+        self.targetFrame = targetFrame
 
     def Notify(self):
-        self.encoderQueueFrame.onTimerTick()
+        self.targetFrame.onTimerTick()
 
 ###########################################################################
     
@@ -1994,7 +2005,7 @@ class preferencesFrame(wx.Frame):
         for (prefKey,(controlType,controlVar)) in self.prefMap.iteritems():
 
             # retrieve the value according to controlType
-            if controlType in ["TextCtrl","Spin"]: # these types all share GetValue()
+            if controlType in ("TextCtrl","Spin"): # these types all share GetValue()
                 value = controlVar.GetValue()
             elif controlType == "Choice":
                 value = controlVar.GetCurrentSelection()
