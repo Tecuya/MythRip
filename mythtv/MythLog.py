@@ -23,6 +23,9 @@ class MythLog:
 		self.ch.setFormatter(logging.Formatter(format))
 		self.log.addHandler(self.ch)
 
+	def setLevel(self, level):
+		self.log.setLevel(level)
+
 	def Msg(self, level, msg, *args, **kwargs):
 		self.log.log(level, msg, *args, **kwargs)
 
@@ -35,5 +38,8 @@ class MythError:
 
 	def __repr__(self):
 		print ': ' + self.message
+
+# instantiate a logger for callers
+log = MythLog(CRITICAL, '%(asctime)s - %(levelname)s - %(message)s', 'MythTV')
 
 # vim: ts=4 sw=4:

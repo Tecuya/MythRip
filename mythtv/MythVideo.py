@@ -6,8 +6,6 @@ MythVideo database.
 from MythDB import *
 from MythLog import *
 
-log = MythLog(CRITICAL, '#%(levelname)s - %(message)s', 'MythVideo')
-
 class MythVideo:
 	"""
 	Provides convinience methods to access the MythTV MythVideo database.

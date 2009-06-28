@@ -12,9 +12,6 @@ from datetime import datetime
 
 from MythLog import *
 
-# create logging object
-log = MythLog(DEBUG, '%(asctime)s - %(levelname)s - DB - %(message)s', 'MythTV')
-
 # check for dependency
 try:
 	import MySQLdb

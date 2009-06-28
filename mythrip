@@ -20,6 +20,17 @@ import stat
 # begin wxGlade: extracode
 # end wxGlade
 
+# for now i just snag the logger from the mythtv bindings.. maybe it'd be better to use my own.. i dunno
+log = mythtv.log
+DEBUG = mythtv.DEBUG
+INFO = mythtv.INFO
+WARNING = mythtv.WARNING
+ERROR = mythtv.ERROR
+FATAL = mythtv.FATAL
+CRITICAL = mythtv.CRITICAL
+
+# string defining the default log level, used by optparse 
+defaultLogLevel = 'WARNING'
 
 mythripVersionString = "MythRip v0.1"
 
@@ -40,7 +51,7 @@ class threadDetailFrame(wx.Frame):
         self.threadMythtranscodeLabel = wx.StaticText(self, -1, "mythtranscode Command:")
         self.threadMythtranscodeCmd = wx.StaticText(self, -1, "[ Waiting.. ]")
         self.static_line_5 = wx.StaticLine(self, -1)
-        self.threadMessagesLabel = wx.StaticText(self, -1, "Messages: ")
+        self.threadMessagesLabel = wx.StaticText(self, -1, "Errors: ")
         self.threadMessagesText = wx.StaticText(self, -1, "[ None ]")
         self.static_line_7 = wx.StaticLine(self, -1)
         self.closeButton = wx.Button(self, -1, "Close")
@@ -71,8 +82,9 @@ class threadDetailFrame(wx.Frame):
         threadDetailSizer = wx.BoxSizer(wx.VERTICAL)
         threadDetailInfoSizer = wx.BoxSizer(wx.HORIZONTAL)
         threadDetailInfoSizer.Add(self.threadDetailLabel, 0, wx.ALIGN_CENTER_VERTICAL, 0)
-        threadDetailInfoSizer.Add(self.threadDetailInformation, 0, wx.ALIGN_CENTER_VERTICAL, 0)
-        threadDetailSizer.Add(threadDetailInfoSizer, 0, wx.EXPAND, 0)
+        threadDetailInfoSizer.Add(self.threadDetailInformation, 0, wx.LEFT|wx.ALIGN_CENTER_VERTICAL, 5)
+        threadDetailSizer.Add(threadDetailInfoSizer, 0, wx.ALIGN_CENTER_HORIZONTAL, 0)
+        threadDetailSizer.Add((20, 20), 0, 0, 0)
         threadDetailSizer.Add(self.static_line_1, 0, wx.EXPAND, 0)
         threadDetailSizer.Add(self.threadMencoderPass1Label, 0, 0, 0)
         threadDetailSizer.Add(self.threadMencoderPass1Cmd, 0, 0, 0)
@@ -259,7 +271,7 @@ class mainFrame(wx.Frame):
                            { 'short': '-H', 'long': '--mysqlhost', 'action': 'store', 'dest': 'mysqlHost', 'default': 'localhost', 'help': 'MythTV MySQL Host', 'autoDiscover': True},
                            { 'short': '-u', 'long': '--mysqluser', 'action': 'store', 'dest': 'mysqlUser', 'default': 'localhost', 'help': 'MythTV MySQL User', 'autoDiscover': True},
                            { 'short': '-p', 'long': '--mysqlpass', 'action': 'store', 'dest': 'mysqlPassword', 'default': 'localhost', 'help': 'MythTV MySQL Password', 'autoDiscover': True},
-                           { 'short': '-d', 'long': '--mysqldb', 'action': 'store', 'dest': 'mysqlDB', 'default': 'localhost', 'help': 'MythTV MySQL Database Name', 'autoDiscover': True},
+                           { 'short': '-D', 'long': '--mysqldb', 'action': 'store', 'dest': 'mysqlDB', 'default': 'localhost', 'help': 'MythTV MySQL Database Name', 'autoDiscover': True},
                            { 'short': '-R', 'long': '--mythrecordingpath', 'action': 'store', 'dest': 'mythtvRecordingPath', 'default': '0', 'help': 'MythTV Recording Path'},
                            { 'short': '-C', 'long': '--mythcutlist', 'action': 'store', 'dest': 'useMythCutlist', 'default': '0', 'help': 'Use MythTV Cutlist'},
                            { 'short': '-m', 'long': '--mencoderpath', 'action': 'store', 'dest': 'mencoderPath', 'default': '/usr/bin/mencoder', 'help': 'Full path to mencoder'},
@@ -277,7 +289,8 @@ class mainFrame(wx.Frame):
                            { 'short': '-t', 'long': '--threadcount', 'action': 'store', 'dest': 'threadCount', 'default': '2', 'help' : 'Max Simultaneous Encoding Jobs' },
                            { 'short': '-r', 'long': '--removecompleted', 'action': 'store', 'dest': 'removeCompleted', 'default': '1', 'help' : 'Remove Completed Job Choice Index' },                       
                            { 'short': '-s', 'long': '--savepath', 'action': 'store', 'dest': 'savePath', 'default': os.path.expanduser('~/Desktop'), 'help' : 'Save Encodings to Path' }, 
-                           { 'short': '-x', 'long': '--filetemplate', 'action': 'store', 'dest': 'fileTemplate', 'default': '%s - %t.%x', 'help' : 'Output File Naming Template' }
+                           { 'short': '-x', 'long': '--filetemplate', 'action': 'store', 'dest': 'fileTemplate', 'default': '%s - %t.%x', 'help' : 'Output File Naming Template' },
+                           { 'short': '-d', 'long': '--debuglevel', 'action': 'store', 'dest': 'debugLevel', 'default': defaultLogLevel, 'help': 'Debug Level: CRITICAL, FATAL, ERROR, WARNING, INFO or DEBUG'}
                            )
         # load preferences from disk
         self.loadPrefsFromDisk()
@@ -358,7 +371,7 @@ class mainFrame(wx.Frame):
 
                 recordingData = rawRecordings[idxStart:idxStop]
 
-                # print "RECORDING: ",recordingData,"------------------------------------------------------\n\n\n"
+                log.Msg(DEBUG, "Recording data scrape: %s" % recordingData)
 
                 self.programList.append( mythtv.Program( recordingData ) )
             
@@ -462,7 +475,7 @@ class mainFrame(wx.Frame):
 	cfgfile=os.path.expanduser('~')+'/.mythriprc'
 	
 	if not os.access(cfgfile,os.F_OK):
-	    print "mythrip config file not found, generating a default one in %s for you.." % cfgfile
+            log.Msg(WARNING, "%s not found, generating a new one set to application defaults" % cfgfile)
 	    self.resetDiskPrefs()
 
         # read config file	    
@@ -508,7 +521,6 @@ class mainFrame(wx.Frame):
 
     # write a dictionary of options to the configuration file
     def writePrefsToDisk(self):
-        print "writePrefsToDisk writing prefs"
 
 	cfgFile=os.path.expanduser('~')+'/.mythriprc'
         
@@ -537,9 +549,26 @@ class mainFrame(wx.Frame):
 	for option in self.optionMap:
             value = getattr(options, option['dest'])
             if value:
-                print "pref ",option['dest']," loaded with value",value,"from cli"
                 self.prefs[option['dest']] = value
-                
+
+        # handle the special debuglevel config option
+
+        # map string values to error levels
+        levelMap = {"CRITICAL": mythtv.CRITICAL,
+                    "FATAL": mythtv.FATAL,
+                    "ERROR": mythtv.ERROR,
+                    "WARNING": mythtv.WARNING,
+                    "INFO": mythtv.INFO,
+                    "DEBUG": mythtv.DEBUG}
+        
+        # if they didnt supply a default log level, then set the default
+        if options.debugLevel == None:
+            options.debugLevel = defaultLogLevel
+
+        if levelMap.has_key( options.debugLevel ):
+            log.setLevel( levelMap[ options.debugLevel ] )
+            log.Msg(INFO, "Changed debug level to %s" % options.debugLevel)
+        
     def populatePrefsToChildren(self):
         self.preferencesFrame.setPreferences( self.prefs )
         self.encoderQueueFrame.setPreferences( self.prefs )
@@ -553,17 +582,14 @@ class mainFrame(wx.Frame):
         
         # if we did not load mysqlHost from disk, assume we should try and find the myth settings from the myth config files
         if not self.prefs.has_key("mysqlHost"):
-            print "mysql host wasnt loaded from disk; searching for mysql settings"
+            log.Msg(INFO, "mysqlHost not found in saved preferences; searching for your MythTV MySQL settings file.")
 
             mythSettings = self.findMythMysqlSettings()
-            print "myth settings acquired",mythSettings
 
             self.prefs.update( mythSettings )
             
         self.mainFrameStatusbar.PushStatusText('Preferences loaded.')
         
-        print "loadPrefsFromDisk returning : ",self.prefs
-
         
     def findMythMysqlSettings(self):
         # Try to read the mysql.txt file used by MythTV.
@@ -611,7 +637,7 @@ class mainFrame(wx.Frame):
                         dbconn_pass = val
 
             if dbconn_host != None or dbconn_name != None or dbconn_user != None or dbconn_pass != None:
-                print "found config"
+                log.Msg(INFO, "Using configuration file %s" % config_file)
                 found_config = True
                 break
         
@@ -730,7 +756,6 @@ class mainFrame(wx.Frame):
         event.Skip()
         
     def onQueue(self, event): # wxGlade: mainFrame.<event_handler>        
-        print "showing encoderQueueFrame.."
         self.encoderQueueFrame.Show()
         event.Skip()
 
@@ -974,7 +999,7 @@ class encoderQueueFrame(wx.Frame):
         self.encoderQueueListCtrl.SetColumnWidth(3, wx.LIST_AUTOSIZE)
 
     def setPreferences(self, prefs):
-        print "encoder queue frame received new prefs"
+        log.Msg(INFO, "Encoder queue frame received new preferences")
         self.prefs = prefs
         
     def reorderThreads(self, direction):
@@ -1126,6 +1151,7 @@ class encoderQueueFrame(wx.Frame):
             # if there are less threads running than the threadCount, then start some until thats no longer true    
             if runningThreads < self.prefs['threadCount'] and len(pendingThreads):
                 pendingThreads[0].start()
+                time.sleep(0.1) # sleep long enough for the thread to start and get its 'state' variable set to 'running' so we dont try to run it twice
             else:
                 # the only way out of the while True is for there to be no more threads that need starting
                 break
@@ -1133,27 +1159,10 @@ class encoderQueueFrame(wx.Frame):
 
     # when an encoder event is received this is called
     def onEncoderEvent(self, event):
-
-        # print "Thread %d state %s : %s" % (event.threadID, event.threadState, event.listMessage)
         
         # we pretty much need this no matter what
-        listCtrlIndex = self.encoderQueueListCtrl.FindItemData(0,event.threadID)
-        
-        if event.threadState == "terminating":
-            # if the thread died, remove it from the thread pool, and remove the item from the listctrl
-
-            print "Thread %d removed from thread pool." % event.threadID
-            
-            del self.threads[event.threadID]
-            
-            # find the threadOrder item and delete it as well
-            for idx in range(len(self.threadOrder)):
-                if self.threadOrder[idx] == event.threadID:
-                    del self.threadOrder[idx]
-                    break                        
-
+        listCtrlIndex = self.encoderQueueListCtrl.FindItemData(0,event.threadID)        
         self.encoderQueueListCtrl.SetStringItem(listCtrlIndex, 3, event.listMessage)
-
         self.resizeEncoderQueueListCtrl()
             
         event.Skip()
@@ -1233,7 +1242,7 @@ class encoderThread(threading.Thread):
         self.notifyWindow = notifyWindow
         self.program = program
         self.threadID = threadID
-        self.doCommand = ""
+        self.doCommand = "none"
         
         self.state = "new"
         
@@ -1251,7 +1260,7 @@ class encoderThread(threading.Thread):
         self.mythtranscodeStdout = ""
 
         self.mythtranscodeFifoDir = ""
-        
+
         # source video/audio properties
         self.vidWidth = ""
         self.vidHeight = ""
@@ -1275,6 +1284,9 @@ class encoderThread(threading.Thread):
 
         self.mythtranscodeCmd = False
 
+        # initialize the passlog dir 
+        self.clearPasslogDir()
+
         # load parent constructor
         threading.Thread.__init__(self)
     
@@ -1282,8 +1294,6 @@ class encoderThread(threading.Thread):
     def run(self):
 
         self.state = "running"
-
-        print "Thread ID %d : %s" % (self.threadID, self.program)
         
         self.startMythtranscode()
 
@@ -1293,14 +1303,13 @@ class encoderThread(threading.Thread):
 
             # mythtranscode isnt even running.. just bail
             if self.mythtranscodeProcessError == True or self.mythtranscodeProcess.poll() != None:
-                print self.mythtranscodeProcess.poll()
-                print "mythtranscode isnt even running, quit examing its output"
+                log.Msg(WARNING, "Thread %d: mythtranscode launch failure precludes gathering of AV parameters from mythtranscode output; thread will fail" % self.threadID)
                 break
 
             self.parseSubprocessOutput(mtGathering = True)
-            print self.mythtranscodeStdout,"\n-----------------------------------------"
+            # print self.mythtranscodeStdout,"\n-----------------------------------------"
             if re.search(".*Stream.*Audio.*kb/s", self.mythtranscodeStdout):
-                print "Found file AV parameters! Beginning extraction from mythtranscode output"
+                log.Msg(INFO, "Thread %d: Found file AV parameters! Beginning extraction from mythtranscode output" % self.threadID)
                 (self.vidWidth, self.vidHeight, self.vidFramerate) = re.findall('.*Stream #.* ([0-9]+)x([0-9]+).* ([0-9]+\.[0-9]+) tb',self.mythtranscodeStdout)[0]
                 (self.audioRate, audioChanMode) = re.findall('.*Stream #.* ([0-9]+) Hz, ([A-Za-z]+)',self.mythtranscodeStdout)[0]
                 if audioChanMode == "stereo":
@@ -1330,18 +1339,21 @@ class encoderThread(threading.Thread):
 
             self.currentPass = i+1
 
-            # if we were told to abort, escape the loop
+            log.Msg(INFO, "Thread %d: Entering pass %d with doCommand %s, state %s" % ( self.threadID, self.currentPass, self.doCommand, self.state))
+
+            # if we were told to abort, escape the loop failedAndAcknowledged
             if self.doCommand == "abort" or self.state in ("failed","failedAndAcknowledged"):
-                print "aborted or failed; pass %d skipped" % self.currentPass
+                log.Msg(WARNING, "Thread %d: Thread is aborted or failed, pass %d skipped" % (self.threadID, self.currentPass))
                 break
 
             # if this isnt the first loop, we can't count on mythtranscode being started!  we need to start a new one for subsequent passes
             if self.currentPass != 1:
                 self.startMythtranscode()
 
+            # if mythtranscode failed outright, just report the error and escape the encoding loop
             if self.mythtranscodeProcessError:
                 self.reportSubprocessFailure( self.prefs['mythtranscodePath'], self.lastMythtranscodeStderr )
-                print "aborted or failed; pass %d skipped" % self.currentPass                
+                log.Msg(WARNING, "Thread %d: Thread failed, pass %d skipped" % (self.threadID, self.currentPass))
                 break
 
             self.stdoutSockMenc, stdoutChildSockMenc = socket.socketpair() 
@@ -1369,8 +1381,6 @@ class encoderThread(threading.Thread):
             stopRunning = False
             while not stopRunning:
 
-                # print "encoder thread heartbeat"
-
                 self.parseSubprocessOutput()
                 
                 errorSent = False
@@ -1378,21 +1388,15 @@ class encoderThread(threading.Thread):
                 # if a process *was* running, but is not running now, we should decide if its an error and report back to the user
                 if self.mythtranscodeRunning:
                     
-                    if self.mythtranscodeProcess == False:
-                        self.mythtranscodeRunning = False
-                    else:
-                        self.mythtranscodeRunning = (self.mythtranscodeProcess.poll() == None)
-                    
+                    self.updateProcessRunningFlags("mythtranscode")
+
                     if ( not self.mythtranscodeRunning ) and ( self.mythtranscodeProcessError or self.mythtranscodeProcess.returncode != 0 ):
                         self.reportSubprocessFailure( self.prefs['mythtranscodePath'], self.lastMythtranscodeStderr )
                         errorSent = True
                 
                 if self.mencoderRunning:
 
-                    if self.mencoderProcess == False:
-                        self.mencoderRunning = False
-                    else:
-                        self.mencoderRunning = (self.mencoderProcess.poll() == None)                    
+                    self.updateProcessRunningFlags("mencoder")
                     
                     if ( not self.mencoderRunning ) and ( self.mencoderProcessError or self.mencoderProcess.returncode != 0 ):
                         if not errorSent: # dont send another error report about mencoder if mythtranscode already failed
@@ -1404,44 +1408,40 @@ class encoderThread(threading.Thread):
                 if endPass:
 
                     self.setRunningStatus( "Waiting for all subprocesses to end" )
-
-                    print "alert - self.mencoderRunning",self.mencoderRunning,"self.mythtranscodeRunning",self.mythtranscodeRunning
                     
                     # wait 5 seconds for things to normalize
                     for sec in range(15):
-                        
-                        # if the process is dead (subprocess.Popen threw an exception and it never returned) or if the subprocess is terminated
-                        if self.mythtranscodeProcess == False or self.mythtranscodeProcess.poll() != None:
-                            self.mythtranscodeRunning = False
-
-                        if self.mencoderProcess == False or self.mencoderProcess.poll() != None:
-                            self.mencoderRunning = False
+                            
+                        # if mythtranscodeProcessError is False and poll() returns None, the process is alive
+                        self.updateProcessRunningFlags()
                         
                         if not self.mythtranscodeRunning and not self.mencoderRunning:
-                            print "all subprocesses dead"
+                            log.Msg(INFO, "Thread %d: All subprocess dead, terminating thread execution" % self.threadID)
                             stopRunning = True
                             break
 
                         if sec > 3:
 
                             # read again
-                            self.mythtranscodeRunning = (self.mythtranscodeProcess.poll() == None)
-                            self.mencoderRunning = (self.mencoderProcess.poll() == None)
+                            self.updateProcessRunningFlags()
 
                             self.setRunningStatus( "Actively stopping subprocesses" )
-                            print "its been %d seconds now.. going to aggressive mode" % sec
+                            
+                            log.Msg(INFO, "Thread %d: Aggressive mode running at second %d" % (self.threadID, sec))
 
                             if sec > 7:
                                 usesig = signal.SIGKILL
+                                usesigname = "SIGKILL"
                             else:
                                 usesig = signal.SIGTERM
+                                usesigname = "SIGTERM"
 
                             if self.mythtranscodeRunning:
-                                print "aggressive mode: mencoder died but mythtranscode continues to run.  killing it."
+                                log.Msg(INFO, "Thread %d: Aggressive mode: mencoder died but mythtranscode continues to run, sending %s to mythtranscode." % (self.threadID, usesigname))
                                 os.kill(self.mythtranscodeProcess.pid, usesig)
 
                             if self.mencoderRunning:
-                                print "aggressive mode: the 5 sec wait, mythtranscode died but mencoder continues to run.  killing it."
+                                log.Msg(INFO, "Thread %d: Aggressive mode: mythtranscode died but mencoder continues to run, sending %s to mencoder." % (self.threadID, usesigname))
                                 os.kill(self.mencoderProcess.pid, usesig)
 
 
@@ -1454,6 +1454,8 @@ class encoderThread(threading.Thread):
                 # wait a second before checking the subprocess again
                 time.sleep(0.1)
 
+        self.cleanUp()
+
         if self.doCommand == "abort":
             self.sendEncoderEvent( "stopped", "Aborted" )
             self.state = "aborted"
@@ -1463,6 +1465,14 @@ class encoderThread(threading.Thread):
             self.sendEncoderEvent( "stopped", "Completed" )
             self.state = "completed"
 
+
+    def updateProcessRunningFlags(self,which="both"):
+        if which in ("both","mythtranscode"):
+            self.mythtranscodeRunning = ( self.mythtranscodeProcessError == False and self.mythtranscodeProcess.poll() == None )
+
+        if which in ("both","mencoder"):
+            self.mencoderRunning = ( self.mencoderProcessError == False and self.mencoderProcess.poll() == None )
+
     def reportSubprocessFailure(self, processName, failureDetails):
         if self.state == "failedAndAcknowledged":
             return
@@ -1471,11 +1481,35 @@ class encoderThread(threading.Thread):
         self.failedMessage = "%s returned a failure code in pass %d\n\nDetails:\n%s" % (processName, self.currentPass, failureDetails)
         self.state = "failed"
 
-        print "subprocess failure",self.failedMessage
+        log.Msg(WARNING, "Thread %d: Subprocess failure: %s" % (self.threadID, self.failedMessage))
+
+    def clearPasslogDir(self, renewMode=True):
+        log.Msg(INFO, "Thread %d: Clearing passlog directory" % self.threadID)
+
+        # get directory for our fifos to live in
+        self.passlogDir = '/tmp/mythrip-%d-passlog' % self.threadID
         
+        if os.path.isdir(self.passlogDir):
+            try:
+                shutil.rmtree(self.passlogDir)
+            except Exception, e:
+                msg = "Could not remove stale passlog directory: %s" % e
+                
+                log.Msg(WARNING, "Thread ID %d: %s" % (self.threadID, msg))
+                
+                self.sendEncoderEvent("failed",msg)
+                self.state = "failed"
+
+        if renewMode:
+            try:
+                os.mkdir(self.passlogDir)
+            except Exception, e:
+                self.sendEncoderEvent("failed","Failed creating passlog directory: %s" % e)
+                self.state = "failed"
+
         
-    def clearFifoDir(self):
-        print "clearFifoDir"
+    def clearFifoDir(self, renewMode=True):
+        log.Msg(INFO, "Thread %d: Clearing FIFO directory" % self.threadID)
 
         # get directory for our fifos to live in
         self.mythtranscodeFifoDir = '/tmp/mythrip-%d-fifo' % self.threadID
@@ -1489,21 +1523,23 @@ class encoderThread(threading.Thread):
                 try:
                     shutil.rmtree(self.mythtranscodeFifoDir)
                 except Exception, e:
-                    self.sendEncoderEvent("failed","Could not remove stale fifo directory: %s" % e)
-                    self.state = "aborted"
-                    sys.exit() # ??
+                    msg = "Could not remove stale fifo directory: %s" % e
+
+                    log.Msg(WARNING, "Thread ID %d: %s" % (self.threadID, msg))
+
+                    self.sendEncoderEvent("failed",msg)
+                    self.state = "failed"
             else:
                 break
 
             time.sleep(1)
 
-        try:
-            os.mkdir(self.mythtranscodeFifoDir)
-        except Exception, e:
-            self.sendEncoderEvent("failed","Failed creating fifo directories: %s" % e)
-            self.state = "aborted"
-            sys.exit() # ??
-
+        if renewMode:
+            try:
+                os.mkdir(self.mythtranscodeFifoDir)
+            except Exception, e:
+                self.sendEncoderEvent("failed","Failed creating fifo directories: %s" % e)
+                self.state = "failed"
 
     def parseSubprocessOutput(self,mtGathering = False):
         
@@ -1573,8 +1609,6 @@ class encoderThread(threading.Thread):
 
     def buildMencoderCmd(self):
                 
-        print "loaded prefs",self.prefs
-
         # now fire up mencoder reading from mythtranscode's fifo
         mencoderCmd = [self.prefs['mencoderPath'],
                        '-noskip','-idx',
@@ -1638,7 +1672,7 @@ class encoderThread(threading.Thread):
                 mencoderCmd.extend( ['-o', self.outputFile] )
 
             # in two pass mode, always pass the logfile arg
-            mencoderCmd.extend( ['-passlogfile', 'logfile-thread-%d.log' % self.threadID] )
+            mencoderCmd.extend( ['-passlogfile', os.path.join( self.passlogDir, 'pass.log' ) ] )
         else:
             outputFile = self.makeOutputFilename()
             mencoderCmd.extend( ['-o', self.outputFile] )
@@ -1648,8 +1682,6 @@ class encoderThread(threading.Thread):
     def startMythtranscode(self):
         
         self.clearFifoDir()
-
-        print "Starting mythtranscode!"
 
         # fire up mythtranscode turbo=1:subq=1:frameref=1
         self.mythtranscodeCmd = [self.prefs['mythtranscodePath'],
@@ -1663,15 +1695,15 @@ class encoderThread(threading.Thread):
         
         if self.prefs["useMythCutlist"] == 0:
             self.mythtranscodeCmd.append('--honorcutlist')
-
-        print self.mythtranscodeCmd        
         
         # use sockets for the subprocess file objects so we can read from stdout/stderr in a non-blocking fashion
         self.stdoutSockMT, stdoutChildSockMT = socket.socketpair() 
         self.stderrSockMT, stderrChildSockMT = socket.socketpair() 
         self.stdoutSockMT.settimeout(0.1)
         self.stderrSockMT.settimeout(0.1)
-        
+
+        log.Msg(INFO, "Thread %d: Starting mythtranscode" % self.threadID)
+
         self.mythtranscodeProcessError = False
         try:
             self.mythtranscodeProcess = subprocess.Popen(self.mythtranscodeCmd, stdin=None, stdout=stdoutChildSockMT.fileno(), stderr=stderrChildSockMT.fileno())
@@ -1688,14 +1720,12 @@ class encoderThread(threading.Thread):
 
             # mythtranscode isnt even running.. just bail
             if self.mythtranscodeProcess.poll() != None:
-                print self.mythtranscodeProcess.returncode
-                print "process is not running, fifo dir quit"
+                log.Msg(WARNING, "Thread %d: mythtranscode quit running during FIFO directory scan" % self.threadID)
                 break
 
-            print "waiting for fifo dir %d" % i
             fifoPresent = self.isFifo( os.path.join(self.mythtranscodeFifoDir,'vidout') )
             if fifoPresent:
-                print "fifo present!"
+                log.Msg(INFO, "Thread %d: FIFO directory has appeared, mythtranscode start-up successful" % self.threadID)
                 break
 
             time.sleep(1)
@@ -1734,7 +1764,7 @@ class encoderThread(threading.Thread):
         if os.path.isfile(retrFile):
             return self.makeOutputFilename( iteration=(iteration+1) )
         else:
-            print "Output filename"
+            log.Msg(INFO, "Thread %d: Output filename determined to be %s" % (self.threadID, retrFile))
             self.outputFile = retrFile
 
     # func called to update the encoder queue frame listctrl item
@@ -1759,6 +1789,9 @@ class encoderThread(threading.Thread):
     def isFifo(self,fn):
         return os.access(fn,os.R_OK) and stat.S_ISFIFO(os.stat(fn).st_mode)
 
+    def cleanUp(self):
+        self.clearFifoDir(renewMode=False) # clear fifo dir and don't regenerate it!
+        self.clearPasslogDir(renewMode=False)
     
 # a very simple timer to call a tick function in the encoder queue fraem
 class genericTickingTimer(wx.Timer):
@@ -1976,8 +2009,6 @@ class preferencesFrame(wx.Frame):
 
     # set the preferences window to the prefs defined in the prefs argument
     def setPreferences(self, prefs):
-        print "prefs frame being set with prefs passed from caller",prefs
-
         self.prefs = prefs
         
         for (prefKey,(controlType,controlVar)) in self.prefMap.iteritems():
@@ -1997,9 +2028,7 @@ class preferencesFrame(wx.Frame):
                     
 
     # load the preferences that are currently set in this frame in to a prefs array and return it
-    def getPreferences(self):
-        print "prefs frame getting preferences from frame and returning them"
-        
+    def getPreferences(self):        
         prefs = {}
         
         for (prefKey,(controlType,controlVar)) in self.prefMap.iteritems():

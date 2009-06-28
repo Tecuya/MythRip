@@ -8,10 +8,6 @@ dependencies:
 
 todo before release:
   
-  python bindings are hacked to work with my proto version .. what to do?
-
   support for more than just 1 or 2 channels of audio (maybe not before release?)
 
   figure out where we want to keep our passlogfile 
-
-  logging support

@@ -18,8 +18,6 @@ from datetime import datetime
 from MythDB import *
 from MythLog import *
 
-log = MythLog(DEBUG, '%(asctime)s - %(levelname)s - TV - %(message)s', 'MythTV')
-
 RECSTATUS = {
 		'TunerBusy': -8,
 		'LowDiskSpace': -7,
@@ -85,15 +83,19 @@ class MythTV:
 			self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			self.socket.settimeout(10)
 			self.socket.connect((self.master_host, self.master_port))
-			res = self.backendCommand('MYTH_PROTO_VERSION %s' % PROTO_VERSION).split(BACKEND_SEP)
-			if res[0] == 'REJECT':
-				log.Msg(CRITICAL, 'Backend has version %s and we speak version %s', res[1], PROTO_VERSION)
-				sys.exit(1)
+			
+			# disabled protocol version checking.. 
+			#res = self.backendCommand('MYTH_PROTO_VERSION %s' % PROTO_VERSION).split(BACKEND_SEP)
+			#if res[0] == 'REJECT':
+			#	log.Msg(CRITICAL, 'Backend has version %s and we speak version %s', res[1], PROTO_VERSION)
+			#	sys.exit(1)
+
 			res = self.backendCommand('ANN %s %s 0' % (conn_type, socket.gethostname()))
 			if res != 'OK':
 				log.Msg(CRITICAL, 'Unexpected answer to ANN command: %s', res)
 			else:
 				log.Msg(INFO, 'Successfully connected mythbackend at %s:%d', self.master_host, self.master_port)
+
 		except socket.error, e:
 			log.Msg(CRITICAL, 'Couldn\'t connect to %s:%d (is the backend running)', self.master_host, self.master_port)
 			sys.exit(1)
