@@ -40,6 +40,6 @@ class MythError:
 		print ': ' + self.message
 
 # instantiate a logger for callers
-log = MythLog(INFO, '%(asctime)s - %(levelname)s - %(message)s', 'MythTV')
+log = MythLog(CRITICAL, '%(asctime)s - %(levelname)s - %(message)s', 'MythTV')
 
 # vim: ts=4 sw=4:
