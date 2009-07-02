@@ -1872,9 +1872,8 @@ class preferencesFrame(wx.Frame):
         self.mythtvRecordingText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
         self.mythtvRecordingPathNoteLabel = wx.StaticText(self.preferencesMythTVPane, -1, "(Required for \"View\" function only)")
         self.presetLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Presets:")
-        self.loadPresetLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Load Preset: ")
+        self.loadSavePresetLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Load/Save Preset: ")
         self.loadPresetCombo = wx.ComboBox(self.preferencesEncodersPane, -1, choices=[], style=wx.CB_DROPDOWN|wx.CB_DROPDOWN|wx.CB_SORT)
-        self.presetSaveLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Save Preset: ")
         self.presetSaveButton = wx.Button(self.preferencesEncodersPane, -1, "Save")
         self.FileOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Global Options:")
         self.containerFormatLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
@@ -1967,7 +1966,7 @@ class preferencesFrame(wx.Frame):
     def __set_properties(self):
         # begin wxGlade: preferencesFrame.__set_properties
         self.SetTitle("MythRip - Preferences")
-        self.SetSize((512, 524))
+        self.SetSize((542, 535))
         self.useMythCutlistChoice.SetSelection(0)
         self.mythtvRecordingPathNoteLabel.SetFont(wx.Font(10, wx.DEFAULT, wx.ITALIC, wx.NORMAL, 0, ""))
         self.containerFormatChoice.SetSelection(0)
@@ -2011,10 +2010,8 @@ class preferencesFrame(wx.Frame):
         preferencesMythTVSizer.AddGrowableCol(1)
         preferencesEncodersSizer.Add(self.presetLabel, 0, 0, 0)
         preferencesEncodersSizer.Add((10, 10), 0, 0, 0)
-        preferencesEncodersSizer.Add(self.loadPresetLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesEncodersSizer.Add(self.loadSavePresetLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         presetLoadSaveSizer.Add(self.loadPresetCombo, 0, 0, 0)
-        presetLoadSaveSizer.Add((32, 10), 0, 0, 0)
-        presetLoadSaveSizer.Add(self.presetSaveLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         presetLoadSaveSizer.Add(self.presetSaveButton, 0, 0, 0)
         preferencesEncodersSizer.Add(presetLoadSaveSizer, 1, wx.EXPAND, 0)
         preferencesEncodersSizer.Add(self.FileOptionsLabel, 0, wx.ALIGN_BOTTOM, 0)
@@ -2127,11 +2124,10 @@ class preferencesFrame(wx.Frame):
             
         return value
 
-    def populatePresetCombo(self):
-        
-        for presetName,presetItem in self.presetDict.iteritems():
-            # todo - how will we populate the preset combo? damn
-            pass
+    def populatePresetCombo(self):        
+        self.loadPresetCombo.Clear()
+        for presetName,presetItem in self.presetDict.iteritems():            
+            self.loadPresetCombo.Append(presetName)
 
 
     def onCancelButton(self, event): # wxGlade: preferencesFrame.<event_handler>
