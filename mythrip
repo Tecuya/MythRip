@@ -719,7 +719,7 @@ class mainFrame(wx.Frame):
 
         # load the preferences from the prefs frame
         self.prefs = self.preferencesFrame.getPreferences()
-        
+
         self.writePrefsToDisk()
         self.populatePrefsToChildren()
 
@@ -1873,7 +1873,7 @@ class preferencesFrame(wx.Frame):
         self.mythtvRecordingPathNoteLabel = wx.StaticText(self.preferencesMythTVPane, -1, "(Required for \"View\" function only)")
         self.presetLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Presets:")
         self.loadSavePresetLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Load/Save Preset: ")
-        self.loadPresetCombo = wx.ComboBox(self.preferencesEncodersPane, -1, choices=[], style=wx.CB_DROPDOWN|wx.CB_DROPDOWN|wx.CB_SORT)
+        self.presetCombo = wx.ComboBox(self.preferencesEncodersPane, -1, choices=[], style=wx.CB_DROPDOWN|wx.CB_DROPDOWN|wx.CB_SORT)
         self.presetSaveButton = wx.Button(self.preferencesEncodersPane, -1, "Save")
         self.FileOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Global Options:")
         self.containerFormatLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
@@ -1920,7 +1920,7 @@ class preferencesFrame(wx.Frame):
         self.__set_properties()
         self.__do_layout()
 
-        self.Bind(wx.EVT_COMBOBOX, self.onLoadPresetComboEvent, self.loadPresetCombo)
+        self.Bind(wx.EVT_COMBOBOX, self.onLoadPresetComboEvent, self.presetCombo)
         self.Bind(wx.EVT_BUTTON, self.onPresetSave, self.presetSaveButton)
         self.Bind(wx.EVT_CHOICE, self.onVideoCodecChange, self.videoCodecChoice)
         self.Bind(wx.EVT_CHOICE, self.onAudioCodecChange, self.audioCodecChoice)
@@ -1961,7 +1961,10 @@ class preferencesFrame(wx.Frame):
 
         self.presetDict = {}
         
-        self.populatePresetCombo
+        # these are all the prefMap keys we handle in presets
+        self.presetItems = ('containerFormat','extraFlags','videoCodec','videoFirstPassOpts','videoSecondPassOpts','videoFilter','twoPassVideo','audioCodec','audioCodecOptions','audioFilter')
+
+        self.populatePresetCombo()
 
     def __set_properties(self):
         # begin wxGlade: preferencesFrame.__set_properties
@@ -2011,7 +2014,7 @@ class preferencesFrame(wx.Frame):
         preferencesEncodersSizer.Add(self.presetLabel, 0, 0, 0)
         preferencesEncodersSizer.Add((10, 10), 0, 0, 0)
         preferencesEncodersSizer.Add(self.loadSavePresetLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        presetLoadSaveSizer.Add(self.loadPresetCombo, 0, 0, 0)
+        presetLoadSaveSizer.Add(self.presetCombo, 0, 0, 0)
         presetLoadSaveSizer.Add(self.presetSaveButton, 0, 0, 0)
         preferencesEncodersSizer.Add(presetLoadSaveSizer, 1, wx.EXPAND, 0)
         preferencesEncodersSizer.Add(self.FileOptionsLabel, 0, wx.ALIGN_BOTTOM, 0)
@@ -2089,17 +2092,22 @@ class preferencesFrame(wx.Frame):
         for (prefKey,(controlType,controlVar)) in self.prefMap.iteritems():
 
             if prefs.has_key( prefKey ):
+                self.setControlValue( controlType, controlVar, prefs[ prefKey ] )
+
+
+    def setControlValue( self, controlType, controlVar, value ):
                 
-                # set the value according to controlType
-                
-                if controlType == "TextCtrl":
-                    controlVar.SetValue( str(prefs[ prefKey ]) )
-                elif controlType == "Spin":
-                    controlVar.SetValue( int(prefs[ prefKey ]) )
-                elif controlType == "Choice":
-                    controlVar.SetSelection( int(prefs[ prefKey ]) )
-                elif controlType == "DirPicker":  
-                    controlVar.SetPath( str(prefs[ prefKey ]) )                    
+        # set the value according to controlType
+
+        if controlType == "TextCtrl":
+            controlVar.SetValue( str(value) )
+        elif controlType == "Spin":
+            controlVar.SetValue( int(value) )
+        elif controlType == "Choice":
+            controlVar.SetSelection( int(value) )
+        elif controlType == "DirPicker":  
+            controlVar.SetPath( str(value) )
+
 
     # load the preferences that are currently set in this frame in to a prefs array and return it
     def getPreferences(self):        
@@ -2125,9 +2133,9 @@ class preferencesFrame(wx.Frame):
         return value
 
     def populatePresetCombo(self):        
-        self.loadPresetCombo.Clear()
+        self.presetCombo.Clear()
         for presetName,presetItem in self.presetDict.iteritems():            
-            self.loadPresetCombo.Append(presetName)
+            self.presetCombo.Append(presetName)
 
 
     def onCancelButton(self, event): # wxGlade: preferencesFrame.<event_handler>
@@ -2153,13 +2161,6 @@ class preferencesFrame(wx.Frame):
         self.videoFirstPassOptsLabel.SetLabel('First Pass Options%s:' % showParens)
         self.videoSecondPassOptsLabel.SetLabel('Second Pass Options%s:' % showParens)
         
-        if videoCodec[1]:
-            self.videoFirstPassOptsText.SetValue( videoCodec[3] )
-            self.videoSecondPassOptsText.SetValue( videoCodec[4] )
-        else:
-            self.videoFirstPassOptsText.SetValue( '' )
-            self.videoSecondPassOptsText.SetValue( '' )
-
         self.preferencesEncodersPane.Fit()
         event.Skip()
 
@@ -2199,31 +2200,38 @@ class preferencesFrame(wx.Frame):
 
     def onPresetSave(self, event): # wxGlade: preferencesFrame.<event_handler>
 
-        dialog = wx.TextEntryDialog(parent=self, caption="MythRip - Choose Preset Name", message="Please supply a name for the new preset.", style=wx.OK|wx.CANCEL)
-        dialog.ShowModal()
-        
-        presetName = dialog.GetValue()
-        
-        # if we got nothing then either they supplied nothing, or hit cancel.. so we're outta here
-        if presetName == "":
-            return
-        
-        # these are all the prefMap keys we handle in presets
-        presetItems = ('containerFormat','extraFlags','videoCodec','videoFirstPassOpts','videoSecondPassOpts','videoFilter','twoPassVideo','audioCodec','audioCodecOptions','audioFilter')
+        presetName = self.presetCombo.GetValue()
+
+        presetItemDict = {}
 
         presetDict = {}
-        for item in presetItems:
+        for item in self.presetItems:
             (controlType, controlVar) = self.prefMap[item]
-            presetItem[item] = self.getControlValue( controlType, controlVar )
+            presetItemDict[item] = self.getControlValue( controlType, controlVar )
             
-        self.presetDict[ presetName ] = presetItem
-        
+        self.presetDict[ presetName ] = presetItemDict
+
+        wxmessage = wx.MessageDialog(parent=self, caption="MythRip - Preset Saved", message="Preset '%s' saved." % presetName, style=wx.OK)
+        wxmessage.ShowModal()
+                    
         self.populatePresetCombo()
 
         event.Skip()
 
     def onLoadPresetComboEvent(self, event): # wxGlade: preferencesFrame.<event_handler>
-        print "Event handler `onLoadPresetComboEvent' not implemented"
+
+        presetName = self.presetCombo.GetValue()
+        
+        if self.presetDict.has_key(presetName):
+
+            presetSetItem = self.presetDict[ presetName ]
+        
+            for presetFieldName in self.presetItems:
+
+                presetPrefMap = self.prefMap[ presetFieldName ]
+                
+                self.setControlValue( presetPrefMap[0], presetPrefMap[1], presetSetItem[ presetFieldName ] )
+
         event.Skip()
 
 # end of class preferencesFrame
