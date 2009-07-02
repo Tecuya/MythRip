@@ -4,18 +4,13 @@
 
 # mythrip: GUI tool to export MythTV recordings to various portable media files, and manage recordings in general
 
-import os
-import shutil
-import sys
+
+# standard python stuff
+import os, shutil, sys, mythtv, threading, subprocess, socket, re, time, signal, stat, cPickle, base64
+
+# wxpython
 import wx
-import mythtv
-import threading
-import subprocess
-import socket
-import re
-import time 
-import signal
-import stat
+
 
 # begin wxGlade: extracode
 # end wxGlade
@@ -506,19 +501,33 @@ class mainFrame(wx.Frame):
 		delimiterAt = line.find(' ')
 		if delimiterAt != -1:
 		    opt = line[:delimiterAt].strip()
-		    value = line[delimiterAt+1:].rstrip("\n")
-		    
-		    # try to interpret config options
-		    if value.lower() == 'true':
-			setvalue = True
-		    elif value.lower() == 'false':
-			setvalue = False
-		    elif value.isdigit():
-			setvalue = int(value)
-		    else:
-			setvalue = value
-		    
-		    prefs[opt] = setvalue
+
+                    # preset options handled a bit differently..
+                    if opt[:7] == 'preset-':
+                        presetName = base64.b64decode( opt[7:delimiterAt] )
+                        value = line[delimiterAt+1:].rstrip("\n")
+                        print "Loaded presetName",presetName,value
+                        
+                        print cPickle.loads( base64.b64decode(value) )
+
+                        self.preferencesFrame.presetDict[ presetName ] = cPickle.loads( base64.b64decode(value) )
+
+                        self.preferencesFrame.populatePresetCombo()
+
+                    else:
+                        value = line[delimiterAt+1:].rstrip("\n")
+
+                        # try to interpret config options
+                        if value.lower() == 'true':
+                            setvalue = True
+                        elif value.lower() == 'false':
+                            setvalue = False
+                        elif value.isdigit():
+                            setvalue = int(value)
+                        else:
+                            setvalue = value
+
+                        prefs[opt] = setvalue
 
         return prefs
 
@@ -544,12 +553,16 @@ class mainFrame(wx.Frame):
 	cfgFile=os.path.expanduser('~')+'/.mythriprc'
         
         cfg = file(cfgFile,'w+')
-        cfg.write("# Automatically generated mythrip config file.\n\n")
+        cfg.write("# Automatically generated mythrip config file.\n# Values in this file are overwritten every time you click 'OK' in the preferences dialog!!\n\n")
 
+        # write standard options 
         for option in self.optionMap:
-
             if self.prefs.has_key( option["dest"] ): # if the option appears in our prefs then save it
                 cfg.write("## %s\n%s %s\n\n" % (option["help"], option["dest"], self.prefs[ option["dest"] ]))
+
+        # now write whatever presets the user defined
+        for presetName,presetItem in self.preferencesFrame.presetDict.iteritems():
+            cfg.write("## Preset '%s'\npreset-%s %s\n\n" % (presetName, base64.b64encode( presetName ), base64.b64encode( cPickle.dumps( presetItem ))))
 
         cfg.close()
 
@@ -1872,7 +1885,7 @@ class preferencesFrame(wx.Frame):
         self.mythtvRecordingText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
         self.mythtvRecordingPathNoteLabel = wx.StaticText(self.preferencesMythTVPane, -1, "(Required for \"View\" function only)")
         self.presetLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Presets:")
-        self.loadSavePresetLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Load/Save Preset: ")
+        self.loadSavePresetLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Load / Save Preset: ")
         self.presetCombo = wx.ComboBox(self.preferencesEncodersPane, -1, choices=[], style=wx.CB_DROPDOWN|wx.CB_DROPDOWN|wx.CB_SORT)
         self.presetSaveButton = wx.Button(self.preferencesEncodersPane, -1, "Save")
         self.FileOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Global Options:")
