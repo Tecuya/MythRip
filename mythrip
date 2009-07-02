@@ -1297,6 +1297,9 @@ class encoderThread(threading.Thread):
 
         self.mythtranscodeFifoDir = ""
 
+        self.lastMythtranscodeStderr = ""
+        self.lastMencoderStderr = ""
+        
         # source video/audio properties
         self.vidWidth = ""
         self.vidHeight = ""
