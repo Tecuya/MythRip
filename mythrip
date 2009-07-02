@@ -506,10 +506,7 @@ class mainFrame(wx.Frame):
                     if opt[:7] == 'preset-':
                         presetName = base64.b64decode( opt[7:delimiterAt] )
                         value = line[delimiterAt+1:].rstrip("\n")
-                        print "Loaded presetName",presetName,value
                         
-                        print cPickle.loads( base64.b64decode(value) )
-
                         self.preferencesFrame.presetDict[ presetName ] = cPickle.loads( base64.b64decode(value) )
 
                         self.preferencesFrame.populatePresetCombo()
