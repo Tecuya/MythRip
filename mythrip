@@ -6,7 +6,7 @@
 
 
 # standard python stuff
-import os, shutil, sys, mythtv, threading, subprocess, socket, re, time, signal, stat, cPickle, base64
+import os, shutil, sys, mythtv, threading, subprocess, socket, re, time, signal, stat, cPickle, base64, StringIO, traceback
 
 # wxpython
 import wx
@@ -353,8 +353,16 @@ class mainFrame(wx.Frame):
             self.mythTV = mythtv.MythTV(force_db_opts=self.prefs)
             return True
         except Exception, e:
+            # fetch the traceback and push it to logging
+            fp = StringIO.StringIO()
+            traceback.print_exc(file=fp)
+            tracebackString = fp.getvalue()
+            log.Msg(CRITICAL, 'Failed connecting to MythTV: %s' % tracebackString)
+
+            # show the user a nice dialog
             self.showErrorDialog("Error connecting to MythTV", "Error connecting to MythTV:\n%s\nPlease alter your MythTV settings in the Preferences Dialog"%str(e))
-            # it failed?  send the user to the preferences dialog
+
+            # send the user to the preferences dialog
             self.preferencesFrame.Show()
             self.mythTV = False
             return False
