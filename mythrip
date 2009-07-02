@@ -44,6 +44,7 @@ audioCodecDict = {0: ['copy',False],
                   2: ['mp3lame',True,'-lameopts','preset=medium'],
                   3: ['lavc',True,'-lavcopts','acodec=flac'] }
             
+# value from prefs: ["ovc name", (bool) supports option string, "optionstringname", "default option string first pass", "default option string second pass"]
 videoCodecDict = {0: ['copy',False],
                   1: ['xvid',True,'-xvidencopts','fixed_quant=6','fixed_quant=6'],
                   2: ['x264',True,'-x264encopts','subq=1:frameref=1:bitrate=600','subq=6:frameref=15:partitions=all:me=umh:bitrate=600',''],
@@ -1869,10 +1870,16 @@ class preferencesFrame(wx.Frame):
         self.useMythCutlistChoice = wx.Choice(self.preferencesMythTVPane, -1, choices=["Yes", "No"])
         self.mythtvRecordingPath = wx.StaticText(self.preferencesMythTVPane, -1, "MythTV Recording Path: ")
         self.mythtvRecordingText = wx.TextCtrl(self.preferencesMythTVPane, -1, "")
+        self.mythtvRecordingPathNoteLabel = wx.StaticText(self.preferencesMythTVPane, -1, "(Required for \"View\" function only)")
+        self.presetLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Presets:")
+        self.loadPresetLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Load Preset: ")
+        self.loadPresetCombo = wx.ComboBox(self.preferencesEncodersPane, -1, choices=[], style=wx.CB_DROPDOWN|wx.CB_DROPDOWN|wx.CB_SORT)
+        self.presetSaveLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Save Preset: ")
+        self.presetSaveButton = wx.Button(self.preferencesEncodersPane, -1, "Save")
         self.FileOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Global Options:")
         self.containerFormatLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Container Format: ")
         self.containerFormatChoice = wx.Choice(self.preferencesEncodersPane, -1, choices=["avi", "mkv"])
-        self.extraFlagsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Extra mencoder Flags:")
+        self.extraFlagsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Extra mencoder Flags: ")
         self.extraFlagsText = wx.TextCtrl(self.preferencesEncodersPane, -1, "")
         self.videoOptionsLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Options: ")
         self.videoCodecLabel = wx.StaticText(self.preferencesEncodersPane, -1, "Video Codec: ")
@@ -1914,6 +1921,8 @@ class preferencesFrame(wx.Frame):
         self.__set_properties()
         self.__do_layout()
 
+        self.Bind(wx.EVT_COMBOBOX, self.onLoadPresetComboEvent, self.loadPresetCombo)
+        self.Bind(wx.EVT_BUTTON, self.onPresetSave, self.presetSaveButton)
         self.Bind(wx.EVT_CHOICE, self.onVideoCodecChange, self.videoCodecChoice)
         self.Bind(wx.EVT_CHOICE, self.onAudioCodecChange, self.audioCodecChoice)
         self.Bind(wx.EVT_BUTTON, self.onVideoOutputPathButton, self.videoOutputPathButton)
@@ -1951,11 +1960,16 @@ class preferencesFrame(wx.Frame):
 
                         }
 
+        self.presetDict = {}
+        
+        self.populatePresetCombo
+
     def __set_properties(self):
         # begin wxGlade: preferencesFrame.__set_properties
         self.SetTitle("MythRip - Preferences")
-        self.SetSize((469, 442))
+        self.SetSize((512, 524))
         self.useMythCutlistChoice.SetSelection(0)
+        self.mythtvRecordingPathNoteLabel.SetFont(wx.Font(10, wx.DEFAULT, wx.ITALIC, wx.NORMAL, 0, ""))
         self.containerFormatChoice.SetSelection(0)
         self.videoCodecChoice.SetSelection(0)
         self.twoPassVideoChoice.SetSelection(0)
@@ -1970,8 +1984,9 @@ class preferencesFrame(wx.Frame):
         externalProgramsSizer = wx.FlexGridSizer(4, 2, 0, 0)
         preferencesFilesSizer = wx.FlexGridSizer(4, 2, 0, 0)
         preferencesQueueSIzer = wx.FlexGridSizer(2, 2, 0, 0)
-        preferencesEncodersSizer = wx.FlexGridSizer(8, 2, 0, 0)
-        preferencesMythTVSizer = wx.FlexGridSizer(9, 2, 0, 0)
+        preferencesEncodersSizer = wx.FlexGridSizer(11, 2, 0, 0)
+        presetLoadSaveSizer = wx.BoxSizer(wx.HORIZONTAL)
+        preferencesMythTVSizer = wx.FlexGridSizer(10, 2, 0, 0)
         preferencesMythTVSizer.Add(self.mysqlSettingsLabel, 0, 0, 0)
         preferencesMythTVSizer.Add((20, 20), 0, 0, 0)
         preferencesMythTVSizer.Add(self.mysqlHostLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
@@ -1990,10 +2005,20 @@ class preferencesFrame(wx.Frame):
         preferencesMythTVSizer.Add(self.useMythCutlistChoice, 0, 0, 0)
         preferencesMythTVSizer.Add(self.mythtvRecordingPath, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesMythTVSizer.Add(self.mythtvRecordingText, 0, wx.EXPAND, 0)
+        preferencesMythTVSizer.Add((20, 10), 0, 0, 0)
+        preferencesMythTVSizer.Add(self.mythtvRecordingPathNoteLabel, 0, 0, 0)
         self.preferencesMythTVPane.SetSizer(preferencesMythTVSizer)
         preferencesMythTVSizer.AddGrowableCol(1)
-        preferencesEncodersSizer.Add(self.FileOptionsLabel, 0, 0, 0)
+        preferencesEncodersSizer.Add(self.presetLabel, 0, 0, 0)
         preferencesEncodersSizer.Add((10, 10), 0, 0, 0)
+        preferencesEncodersSizer.Add(self.loadPresetLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        presetLoadSaveSizer.Add(self.loadPresetCombo, 0, 0, 0)
+        presetLoadSaveSizer.Add((32, 10), 0, 0, 0)
+        presetLoadSaveSizer.Add(self.presetSaveLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
+        presetLoadSaveSizer.Add(self.presetSaveButton, 0, 0, 0)
+        preferencesEncodersSizer.Add(presetLoadSaveSizer, 1, wx.EXPAND, 0)
+        preferencesEncodersSizer.Add(self.FileOptionsLabel, 0, wx.ALIGN_BOTTOM, 0)
+        preferencesEncodersSizer.Add((10, 20), 0, 0, 0)
         preferencesEncodersSizer.Add(self.containerFormatLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesEncodersSizer.Add(self.containerFormatChoice, 0, 0, 0)
         preferencesEncodersSizer.Add(self.extraFlagsLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
@@ -2047,7 +2072,7 @@ class preferencesFrame(wx.Frame):
         self.preferencesExternalProgramsPane.SetSizer(externalProgramsSizer)
         externalProgramsSizer.AddGrowableCol(1)
         self.preferencesNotebook.AddPage(self.preferencesMythTVPane, "MythTV")
-        self.preferencesNotebook.AddPage(self.preferencesEncodersPane, "Encoders")
+        self.preferencesNotebook.AddPage(self.preferencesEncodersPane, "Encoder")
         self.preferencesNotebook.AddPage(self.preferencesQueuePane, "Queue")
         self.preferencesNotebook.AddPage(self.preferencesFilesPane, "Output Files")
         self.preferencesNotebook.AddPage(self.preferencesExternalProgramsPane, "External Programs")
@@ -2085,18 +2110,28 @@ class preferencesFrame(wx.Frame):
         
         for (prefKey,(controlType,controlVar)) in self.prefMap.iteritems():
 
-            # retrieve the value according to controlType
-            if controlType in ("TextCtrl","Spin"): # these types all share GetValue()
-                value = controlVar.GetValue()
-            elif controlType == "Choice":
-                value = controlVar.GetCurrentSelection()
-            elif controlType == "DirPicker":
-                value = controlVar.GetPath()
-
             # stuff it in to the prefs array
-            prefs[ prefKey ] = value
+            prefs[ prefKey ] = self.getControlValue( controlType, controlVar )
 
         return prefs
+
+
+    def getControlValue(self, controlType, controlVar):
+        # retrieve the value according to controlType
+        if controlType in ("TextCtrl","Spin"): # these types all share GetValue()
+            value = controlVar.GetValue()
+        elif controlType == "Choice":
+            value = controlVar.GetCurrentSelection()
+        elif controlType == "DirPicker":
+            value = controlVar.GetPath()
+            
+        return value
+
+    def populatePresetCombo(self):
+        
+        for presetName,presetItem in self.presetDict.iteritems():
+            # todo - how will we populate the preset combo? damn
+            pass
 
 
     def onCancelButton(self, event): # wxGlade: preferencesFrame.<event_handler>
@@ -2164,6 +2199,35 @@ class preferencesFrame(wx.Frame):
             return
 
         self.videoOutputPathText.SetValue( dest_path )
+        event.Skip()
+
+    def onPresetSave(self, event): # wxGlade: preferencesFrame.<event_handler>
+
+        dialog = wx.TextEntryDialog(parent=self, caption="MythRip - Choose Preset Name", message="Please supply a name for the new preset.", style=wx.OK|wx.CANCEL)
+        dialog.ShowModal()
+        
+        presetName = dialog.GetValue()
+        
+        # if we got nothing then either they supplied nothing, or hit cancel.. so we're outta here
+        if presetName == "":
+            return
+        
+        # these are all the prefMap keys we handle in presets
+        presetItems = ('containerFormat','extraFlags','videoCodec','videoFirstPassOpts','videoSecondPassOpts','videoFilter','twoPassVideo','audioCodec','audioCodecOptions','audioFilter')
+
+        presetDict = {}
+        for item in presetItems:
+            (controlType, controlVar) = self.prefMap[item]
+            presetItem[item] = self.getControlValue( controlType, controlVar )
+            
+        self.presetDict[ presetName ] = presetItem
+        
+        self.populatePresetCombo()
+
+        event.Skip()
+
+    def onLoadPresetComboEvent(self, event): # wxGlade: preferencesFrame.<event_handler>
+        print "Event handler `onLoadPresetComboEvent' not implemented"
         event.Skip()
 
 # end of class preferencesFrame
