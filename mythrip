@@ -1445,7 +1445,7 @@ class encoderThread(threading.Thread):
                             stopRunning = True
                             break
 
-                        if sec > 3:
+                        if sec > 1:
 
                             # read again
                             self.updateProcessRunningFlags()
@@ -1897,7 +1897,8 @@ class preferencesFrame(wx.Frame):
         self.removeCompletedLabel = wx.StaticText(self.preferencesQueuePane, -1, "Remove Completed Jobs: ")
         self.removeCompletedChoice = wx.Choice(self.preferencesQueuePane, -1, choices=["Yes", "No"])
         self.savePathLabel = wx.StaticText(self.preferencesFilesPane, -1, "Save Encoded Videos In: ")
-        self.savePathPicker = wx.DirPickerCtrl(self.preferencesFilesPane, -1)
+        self.videoOutputPathText = wx.TextCtrl(self.preferencesFilesPane, -1, "")
+        self.videoOutputPathButton = wx.Button(self.preferencesFilesPane, -1, "Browse...")
         self.fileTemplateLabel = wx.StaticText(self.preferencesFilesPane, -1, "File Naming Template: ")
         self.fileTemplateText = wx.TextCtrl(self.preferencesFilesPane, -1, "")
         self.fileTemplateHelpLabel = wx.StaticText(self.preferencesFilesPane, -1, "%s: Title\n%e: Subtitle\n%d: Description\n%c: Category\n%C: Channel number\n%T: Start time\n%E: End time\n%i: Series ID\n%h: Hostname")
@@ -1915,6 +1916,7 @@ class preferencesFrame(wx.Frame):
 
         self.Bind(wx.EVT_CHOICE, self.onVideoCodecChange, self.videoCodecChoice)
         self.Bind(wx.EVT_CHOICE, self.onAudioCodecChange, self.audioCodecChoice)
+        self.Bind(wx.EVT_BUTTON, self.onVideoOutputPathButton, self.videoOutputPathButton)
         self.Bind(wx.EVT_BUTTON, self.onCancelButton, self.preferencesCancelButton)
         self.Bind(wx.EVT_BUTTON, self.onOKButton, self.preferencesOKButton)
         # end wxGlade
@@ -1941,7 +1943,7 @@ class preferencesFrame(wx.Frame):
                         'audioFilter': ['TextCtrl', self.audioFilterText],
                         'threadCount': ['Spin', self.threadCountSpin],
                         'removeCompleted': ['Choice', self.removeCompletedChoice],
-                        'savePath': ['DirPicker', self.savePathPicker],
+                        'savePath': ['TextCtrl', self.videoOutputPathText],
                         'fileTemplate': ['TextCtrl', self.fileTemplateText],
                         'mencoderPath': ['TextCtrl', self.mencoderPathText],
                         'playerPath': ['TextCtrl', self.playerPathText],
@@ -1966,7 +1968,7 @@ class preferencesFrame(wx.Frame):
         preferencesSizer = wx.BoxSizer(wx.VERTICAL)
         preferencesButtonSizer = wx.BoxSizer(wx.HORIZONTAL)
         externalProgramsSizer = wx.FlexGridSizer(4, 2, 0, 0)
-        preferencesFilesSizer = wx.FlexGridSizer(3, 2, 0, 0)
+        preferencesFilesSizer = wx.FlexGridSizer(4, 2, 0, 0)
         preferencesQueueSIzer = wx.FlexGridSizer(2, 2, 0, 0)
         preferencesEncodersSizer = wx.FlexGridSizer(8, 2, 0, 0)
         preferencesMythTVSizer = wx.FlexGridSizer(9, 2, 0, 0)
@@ -2025,7 +2027,11 @@ class preferencesFrame(wx.Frame):
         self.preferencesQueuePane.SetSizer(preferencesQueueSIzer)
         preferencesQueueSIzer.AddGrowableCol(1)
         preferencesFilesSizer.Add(self.savePathLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
-        preferencesFilesSizer.Add(self.savePathPicker, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        preferencesFilesSizer.Add(self.videoOutputPathText, 0, wx.EXPAND, 0)
+        preferencesFilesSizer.Add((20, 10), 0, 0, 0)
+        preferencesFilesSizer.Add(self.videoOutputPathButton, 0, 0, 0)
+        preferencesFilesSizer.Add((20, 20), 0, 0, 0)
+        preferencesFilesSizer.Add((20, 20), 0, 0, 0)
         preferencesFilesSizer.Add(self.fileTemplateLabel, 0, wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesFilesSizer.Add(self.fileTemplateText, 0, wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 0)
         preferencesFilesSizer.Add((20, 20), 0, 0, 0)
@@ -2064,15 +2070,14 @@ class preferencesFrame(wx.Frame):
                 
                 # set the value according to controlType
                 
-                if controlType == "TextCtrl": 
+                if controlType == "TextCtrl":
                     controlVar.SetValue( str(prefs[ prefKey ]) )
                 elif controlType == "Spin":
                     controlVar.SetValue( int(prefs[ prefKey ]) )
                 elif controlType == "Choice":
                     controlVar.SetSelection( int(prefs[ prefKey ]) )
-                elif controlType == "DirPicker":
-                    controlVar.SetPath( str(prefs[ prefKey ]) )
-                    
+                elif controlType == "DirPicker":  
+                    controlVar.SetPath( str(prefs[ prefKey ]) )                    
 
     # load the preferences that are currently set in this frame in to a prefs array and return it
     def getPreferences(self):        
@@ -2145,6 +2150,20 @@ class preferencesFrame(wx.Frame):
             self.audioCodecOptionsText.SetValue( '' )
 
         self.preferencesEncodersPane.Fit()
+        event.Skip()
+
+    def onVideoOutputPathButton(self, event): # wxGlade: preferencesFrame.<event_handler>
+        wx_dir_chooser = wx.DirDialog(self,
+                                      message="Choose the directory where you want encoded videos to be saved.")
+
+        result = wx_dir_chooser.ShowModal()
+        dest_path = wx_dir_chooser.GetPath()
+        wx_dir_chooser.Destroy()
+
+        if result != wx.ID_OK:
+            return
+
+        self.videoOutputPathText.SetValue( dest_path )
         event.Skip()
 
 # end of class preferencesFrame
