@@ -33,6 +33,12 @@ defaultLogLevel = 'WARNING'
 # our version
 mythripVersionString = "MythRip v0.1"
 
+# default config file
+mythripRc = os.path.expanduser('~')+'/.mythriprc'
+
+
+################################################################################################################
+
 # value from prefs: ["oac name", (bool) supports option string, "optionstringname"]
 audioCodecDict = {0: ['copy',False],
                   1: ['pcm',False],
@@ -494,14 +500,13 @@ class mainFrame(wx.Frame):
 
     def readPrefsFromDisk(self):
         prefs = {}
-	cfgfile=os.path.expanduser('~')+'/.mythriprc'
 	
-	if not os.access(cfgfile,os.F_OK):
-            log.Msg(WARNING, "%s not found, generating a new one set to application defaults" % cfgfile)
+	if not os.access(mythripRc,os.F_OK):
+            log.Msg(WARNING, "%s not found, generating a new one set to application defaults" % mythripRc)
 	    self.resetDiskPrefs()
 
         # read config file	    
-	lines = file(cfgfile,'r').readlines()
+	lines = file(mythripRc,'r').readlines()
 
 	# parse config line by line
 	for line in lines:
@@ -537,8 +542,7 @@ class mainFrame(wx.Frame):
         return prefs
 
     def resetDiskPrefs(self):
-	cfgfile=os.path.expanduser('~')+'/.mythriprc'
-        cfg = file(cfgfile,'w+')
+        cfg = file(mythripRc,'w+')
         cfg.write("# Automatically generated mythrip config file.\n\n")
         for option in self.optionMap:
             
@@ -555,9 +559,7 @@ class mainFrame(wx.Frame):
     # write a dictionary of options to the configuration file
     def writePrefsToDisk(self):
 
-	cfgFile=os.path.expanduser('~')+'/.mythriprc'
-        
-        cfg = file(cfgFile,'w+')
+        cfg = file(mythripRc,'w+')
         cfg.write("# Automatically generated mythrip config file.\n# Values in this file are overwritten every time you click 'OK' in the preferences dialog!!\n\n")
 
         # write standard options 
@@ -1090,7 +1092,7 @@ class encoderQueueFrame(wx.Frame):
     def abortThreadsAndQuit(self, abortThreads):
         
         for threadID in abortThreads:
-            self.threads[ threadID ].doCommand = "abort"
+            self.threads[ threadID ].setCommand( "abort" )
             
         self.quitFlag = True
 
@@ -1234,15 +1236,23 @@ class encoderQueueFrame(wx.Frame):
 
     def onToolbarStop(self, event): # wxGlade: encoderQueueFrame.<event_handler>
         item = self.encoderQueueListCtrl.GetFirstSelected()
+
         while item != -1:
             threadID = self.encoderQueueListCtrl.GetItemData(item)
+            
+            # abort it
+            self.threads[ threadID ].setCommand("abort")
 
-            # abort if its running (dont set abort flag on waiting threads)
-            if self.threads[ threadID ].state == "running":
-                self.threads[ threadID ].setCommand("abort")
+            # run the thread if it wasn't running .. this way it can receive the abort flag!
+            if self.threads[ threadID ].state != "running":
+                self.threads[ threadID ].start()
 
             item = self.encoderQueueListCtrl.GetNextSelected(item)
+
         event.Skip()
+
+
+
 
     def onItemRightClick(self, event): # wxGlade: encoderQueueFrame.<event_handler>
         print "Event handler `onItemRightClick' not implemented"
@@ -1288,7 +1298,7 @@ class encoderThread(threading.Thread):
         self.threadID = threadID
         self.doCommand = "none"
         
-        self.state = "new"
+        self.maintainState(setState="new")
         
         self.lastListMessage = "Waiting"
 
@@ -1340,7 +1350,8 @@ class encoderThread(threading.Thread):
         
     def run(self):
 
-        self.state = "running"
+        if not self.maintainState("running"):
+            return
         
         self.startMythtranscode()
 
@@ -1388,8 +1399,8 @@ class encoderThread(threading.Thread):
 
             log.Msg(INFO, "Thread %d: Entering pass %d with doCommand %s, state %s" % ( self.threadID, self.currentPass, self.doCommand, self.state))
 
-            # if we were told to abort, escape the loop failedAndAcknowledged
-            if self.doCommand == "abort" or self.state in ("failed","failedAndAcknowledged"):
+            # if maintainstate says we are to die, then we skip
+            if not self.maintainState():
                 log.Msg(WARNING, "Thread %d: Thread is aborted or failed, pass %d skipped" % (self.threadID, self.currentPass))
                 break
 
@@ -1450,7 +1461,7 @@ class encoderThread(threading.Thread):
                             self.reportSubprocessFailure( self.prefs['mencoderPath'], self.lastMencoderStderr )
                         
                 # end the pass if mythtranscode and mencoder are not both running, or if we've been told to abort
-                endPass = (not ( self.mythtranscodeRunning and self.mencoderRunning ) ) or self.doCommand == "abort"
+                endPass = (not ( self.mythtranscodeRunning and self.mencoderRunning ) ) or not self.maintainState()
 
                 if endPass:
 
@@ -1463,7 +1474,7 @@ class encoderThread(threading.Thread):
                         self.updateProcessRunningFlags()
                         
                         if not self.mythtranscodeRunning and not self.mencoderRunning:
-                            log.Msg(INFO, "Thread %d: All subprocess dead, terminating thread execution" % self.threadID)
+                            log.Msg(INFO, "Thread %d: All subprocess dead, terminating thread execution" % self.threadID)                            
                             stopRunning = True
                             break
 
@@ -1501,18 +1512,45 @@ class encoderThread(threading.Thread):
                 # wait a second before checking the subprocess again
                 time.sleep(0.1)
 
-        self.cleanUp()
-
-        if self.doCommand == "abort":
-            self.sendEncoderEvent( "stopped", "Aborted" )
-            self.state = "aborted"
-        elif self.state in ("failed","failedAndAcknowledged"):
-            self.sendEncoderEvent( "stopped", "Failed (see thread detail window)" )
+        # for this final call to maintainstate, we need to determine if we were aborted, and if so tell maintainState so
+        if self.state == "aborted":
+            self.maintainState("aborted")
         else:
+            self.maintainState("completed")
+
+        self.cleanupAndDie()
+
+
+    # this func maintains the state of the thread.. 
+    # it returns a boolean indicating if the thread should continue running
+    def maintainState(self,setState = False):
+
+        # allow setting the state
+        if setState:
+            self.state = setState
+
+        # parse getCommand - always overrides setState
+        if self.getCommand() == "abort":
+            self.state = "aborted"
+            
+
+        # send appropriate encoder events for our state if applicable
+        if self.state == "aborted":
+            self.sendEncoderEvent( "stopped", "Aborted" )
+            return False
+
+        elif self.state in ("failed","failedAndAcknowledged"):
+            self.sendEncoderEvent( "stopped", "Failed (see thread detail window)" )        
+            return False
+
+        elif self.state == "completed":
             self.sendEncoderEvent( "stopped", "Completed" )
-            self.state = "completed"
+            return False
 
+        else:
+            return True
 
+            
     def updateProcessRunningFlags(self,which="both"):
         if which in ("both","mythtranscode"):
             self.mythtranscodeRunning = ( self.mythtranscodeProcessError == False and self.mythtranscodeProcess.poll() == None )
@@ -1543,19 +1581,21 @@ class encoderThread(threading.Thread):
                 msg = "Could not remove stale passlog directory: %s" % e
                 
                 log.Msg(WARNING, "Thread ID %d: %s" % (self.threadID, msg))
-                
-                self.sendEncoderEvent("failed",msg)
-                self.state = "failed"
+
+                self.maintainState(setState="failed")
 
         if renewMode:
             try:
                 os.mkdir(self.passlogDir)
             except Exception, e:
-                self.sendEncoderEvent("failed","Failed creating passlog directory: %s" % e)
-                self.state = "failed"
+
+                log.Msg(WARNING, "Failed creating passlog directory: %s" % e)
+
+                self.maintainState(setState="failed")
 
         
     def clearFifoDir(self, renewMode=True):
+
         log.Msg(INFO, "Thread %d: Clearing FIFO directory" % self.threadID)
 
         # get directory for our fifos to live in
@@ -1564,8 +1604,6 @@ class encoderThread(threading.Thread):
         # we'll try killing that fifo dir 10 times.
         for sec in range(10):
             
-            self.setRunningStatus( "Waiting for mythtranscode fifos" )
-
             if os.path.isdir(self.mythtranscodeFifoDir):
                 try:
                     shutil.rmtree(self.mythtranscodeFifoDir)
@@ -1574,8 +1612,8 @@ class encoderThread(threading.Thread):
 
                     log.Msg(WARNING, "Thread ID %d: %s" % (self.threadID, msg))
 
-                    self.sendEncoderEvent("failed",msg)
-                    self.state = "failed"
+                    self.maintainState(setState="failed")
+
             else:
                 break
 
@@ -1585,8 +1623,8 @@ class encoderThread(threading.Thread):
             try:
                 os.mkdir(self.mythtranscodeFifoDir)
             except Exception, e:
-                self.sendEncoderEvent("failed","Failed creating fifo directories: %s" % e)
-                self.state = "failed"
+                log.Msg(WARNING, "Failed creating fifo directories: %s" % e)
+                self.maintainState(setState="failed")
 
     def parseSubprocessOutput(self,mtGathering = False):
         
@@ -1713,10 +1751,7 @@ class encoderThread(threading.Thread):
         mencoderCmd.extend( ['-ovc', useVideoCodec[0] ] )
         
         if useVideoCodec[1]:
-            if self.currentPass == 1:                
-                mencoderCmd.extend( [useVideoCodec[2], self.prefs['videoFirstPassOpts']] )
-            elif self.currentPass == 2:
-                mencoderCmd.extend( [useVideoCodec[2], self.prefs['videoSecondPassOpts']] )
+            mencoderCmd.extend( [useVideoCodec[2], encOpts] )
                 
         if len(self.prefs['videoFilter']):            
             mencoderCmd.extend( ['-vf',self.prefs['videoFilter']] )
@@ -1740,6 +1775,11 @@ class encoderThread(threading.Thread):
     
     def startMythtranscode(self):
         
+        # dont even try if we are to terminate
+        if not self.maintainState():
+            return
+
+        self.setRunningStatus( "Waiting for mythtranscode fifos" )
         self.clearFifoDir()
 
         # fire up mythtranscode turbo=1:subq=1:frameref=1
@@ -1841,6 +1881,12 @@ class encoderThread(threading.Thread):
     def setCommand(self,command):
         self.doCommand = command
 
+    # called by the thread to get commands.  upon getting them, they are reset to none
+    def getCommand(self):        
+        ret = self.doCommand
+        self.doCommand = "none"
+        return ret
+
     def sendEncoderEvent(self, threadState, listMessage):
         self.lastListMessage = listMessage
         wx.PostEvent(self.notifyWindow, encoderEvent(self.threadID, threadState, listMessage))
@@ -1848,7 +1894,7 @@ class encoderThread(threading.Thread):
     def isFifo(self,fn):
         return os.access(fn,os.R_OK) and stat.S_ISFIFO(os.stat(fn).st_mode)
 
-    def cleanUp(self):
+    def cleanupAndDie(self):
         self.clearFifoDir(renewMode=False) # clear fifo dir and don't regenerate it!
         self.clearPasslogDir(renewMode=False)
     
@@ -2252,6 +2298,8 @@ class preferencesFrame(wx.Frame):
                 presetPrefMap = self.prefMap[ presetFieldName ]
                 
                 self.setControlValue( presetPrefMap[0], presetPrefMap[1], presetSetItem[ presetFieldName ] )
+
+        self.onVideoCodecChange(event)
 
         event.Skip()
 

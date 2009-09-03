@@ -10,4 +10,9 @@ todo before release:
   
   codec & audio improvements
 
-  
+  when you change presets, encoder change handler doesnt change the encoder string label
+
+  encoder option strings ending with : cause trouble due to ::pass=2
+
+  - something seems to have caused mythrip to stop encoder progress
+  ** it always stops on pass 2 around 52% ; could it be some kind of full file object?
