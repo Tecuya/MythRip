@@ -1,3 +1,13 @@
+MythRip should run on any machine which meets the following dependencies:
+
+  * Python 2.6 
+  * wxWidgets 2.6 or greater
+ 
+When ran on a machine which is already a working mythfrontend, it should 
+require no configuration in order to communicate with MythTV.  If there 
+is trouble, the MythTV tab in preferences allows you to alter the 
+connection parameters.
+
 To run mythrip from the unpacked distributed tarball, run:
 
    $ ./mythrip
