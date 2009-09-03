@@ -554,6 +554,8 @@ class mainFrame(wx.Frame):
 
             cfg.write("# %s\n%s%s %s\n\n" % (option['help'], optionPrefix, option['dest'], option['default']))
 
+        cfg.write("# Preset 'x264 - Television'\npreset-eDI2NCAtIFRlbGV2aXNpb24gMg== KGRwMQpTJ2V4dHJhRmxhZ3MnCnAyClYKc1MndmlkZW9Db2RlYycKcDMKSTIKc1MndmlkZW9GaWx0ZXInCnA0ClZwcD1mZApwNQpzUydhdWRpb0ZpbHRlcicKcDYKVnZvbG5vcm0KcDcKc1MndmlkZW9GaXJzdFBhc3NPcHRzJwpwOApWYml0cmF0ZT04MDA6c3VicT0xOmZyYW1lcmVmPTE6cmVmPTM6bWl4ZWQtcmVmczpiZnJhbWVzPTY6d2VpZ2h0YjpkaXJlY3Q9YXV0bzpiLXB5cmFtaWQ6YW5hbHlzZT1hbGw6OHg4ZGN0OnRyZWxsaXM9MTpucj0xNTA6cHN5LXJkPTEsMQpwOQpzUydhdWRpb0NvZGVjT3B0aW9ucycKcDEwClZwcmVzZXQ9bWVkaXVtCnAxMQpzUyd0d29QYXNzVmlkZW8nCnAxMgpJMApzUyd2aWRlb1NlY29uZFBhc3NPcHRzJwpwMTMKVmJpdHJhdGU9ODAwOnN1YnE9NjpmcmFtZXJlZj0xNTpyZWY9MzptaXhlZC1yZWZzOmJmcmFtZXM9Njp3ZWlnaHRiOmRpcmVjdD1hdXRvOmItcHlyYW1pZDptZT11bWg6c3VibWU9OTphbmFseXNlPWFsbDo4eDhkY3Q6dHJlbGxpcz0xOm5yPTE1MDpuby1mYXN0LXBza2lwPTE6cHN5LXJkPTEsMQpwMTQKc1MnYXVkaW9Db2RlYycKcDE1CkkyCnNTJ2NvbnRhaW5lckZvcm1hdCcKcDE2CkkwCnMu\n\n")
+
         cfg.close()
 
     # write a dictionary of options to the configuration file
