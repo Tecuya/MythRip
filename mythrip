@@ -4,9 +4,25 @@
 
 # mythrip: GUI tool to export MythTV recordings to various portable media files, and manage recordings in general
 
-
 # standard python stuff
-import os, shutil, sys, mythtv, threading, subprocess, socket, re, time, signal, stat, cPickle, base64, StringIO, traceback
+import os, shutil, sys, threading, subprocess, socket, re, time, signal, stat, cPickle, base64, StringIO, traceback
+
+# add to the sys.path if this prog is being run from a known path
+dir = os.path.split(__file__)[0]
+
+pathMap = {"/usr/bin" : "/usr/share/mythrip",
+           "/usr/local/bin" : "/usr/local/share/mythrip"}
+
+if pathMap.has_key(dir):    
+    addPath = pathMap[dir]
+    sys.path.append( addPath )
+    
+# we should hopefully have this somewhere in sys.path at this point
+try:
+    import mythtv
+except Exception, e:
+    print "Failed to find mythtv module: %s" % e
+    sys.exit()
 
 # wxpython
 import wx

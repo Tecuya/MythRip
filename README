@@ -1,0 +1,11 @@
+To run mythrip from the unpacked distributed tarball, run:
+
+   $ ./mythrip
+
+To install mythrip, run (as root):
+
+   # python setup.py install
+
+..and start it with:
+
+   $ mythrip   
