@@ -1398,20 +1398,30 @@ class encoderThread(threading.Thread):
 
             # mythtranscode isnt even running.. just bail
             if self.mythtranscodeProcessError == True or self.mythtranscodeProcess.poll() != None:
-                log.Msg(WARNING, "Thread %d: mythtranscode launch failure precludes gathering of AV parameters from mythtranscode output; thread will fail" % self.threadID)
+                log(WARNING, "Thread %d: mythtranscode launch failure precludes gathering of AV parameters from mythtranscode output; thread will fail" % self.threadID)
                 break
 
             self.parseSubprocessOutput(mtGathering = True)
+            
             # print self.mythtranscodeStdout,"\n-----------------------------------------"
-            if re.search(".*Stream.*Audio.*kb/s", self.mythtranscodeStdout):
-                log.Msg(INFO, "Thread %d: Found file AV parameters! Beginning extraction from mythtranscode output" % self.threadID)
-                (self.vidWidth, self.vidHeight, self.vidFramerate) = re.findall('.*Stream #.* ([0-9]+)x([0-9]+).* ([0-9]+\.[0-9]+) tb',self.mythtranscodeStdout)[0]
-                (self.audioRate, audioChanMode) = re.findall('.*Stream #.* ([0-9]+) Hz, ([A-Za-z]+)',self.mythtranscodeStdout)[0]
-                if audioChanMode == "stereo":
-                    self.audioChannels = "2"
-                else:
-                    # TODO im not sure what other values are produced in this slot
-                    self.audioChannels = "1"
+            
+            if re.search("FifoAudioHz", self.mythtranscodeStdout): # if we received the last line of the Fifo*** stuff
+                log(INFO, "Thread %d: Found file AV parameters! Beginning extraction from mythtranscode output" % self.threadID)
+                
+                self.vidWidth = re.findall('FifoVideoWidth ([0-9]+)',self.mythtranscodeStdout)[0]
+                self.vidHeight = re.findall('FifoVideoHeight ([0-9]+)',self.mythtranscodeStdout)[0]
+                self.vidFramerate = re.findall('FifoVideoFrameRate ([0-9\.]+)',self.mythtranscodeStdout)[0]
+                self.audioRate = re.findall('FifoAudioHz ([0-9]+)',self.mythtranscodeStdout)[0]
+                self.audioChannels = re.findall('FifoAudioChannels ([0-9]+)',self.mythtranscodeStdout)[0]
+                
+                ## (self.vidWidth, self.vidHeight, self.vidFramerate) = re.findall('.*Stream #.* ([0-9]+)x([0-9]+).* ([0-9]+\.[0-9]+) tb',self.mythtranscodeStdout)[0]
+                ## (self.audioRate, audioChanMode) = re.findall('.*Stream #.* ([0-9]+) Hz, ([A-Za-z]+)',self.mythtranscodeStdout)[0]
+                ## if audioChanMode == "stereo":
+                ##     self.audioChannels = "2"
+                ## else:
+                ##     # TODO im not sure what other values are produced in this slot
+                ##     self.audioChannels = "1"
+                
                 break
 
             time.sleep(1)
@@ -1434,11 +1444,11 @@ class encoderThread(threading.Thread):
 
             self.currentPass = i+1
 
-            log.Msg(INFO, "Thread %d: Entering pass %d with doCommand %s, state %s" % ( self.threadID, self.currentPass, self.doCommand, self.state))
+            log(INFO, "Thread %d: Entering pass %d with doCommand %s, state %s" % ( self.threadID, self.currentPass, self.doCommand, self.state))
 
             # if maintainstate says we are to die, then we skip
             if not self.maintainState():
-                log.Msg(WARNING, "Thread %d: Thread is aborted or failed, pass %d skipped" % (self.threadID, self.currentPass))
+                log(WARNING, "Thread %d: Thread is aborted or failed, pass %d skipped" % (self.threadID, self.currentPass))
                 break
 
             # if this isnt the first loop, we can't count on mythtranscode being started!  we need to start a new one for subsequent passes
@@ -1448,7 +1458,7 @@ class encoderThread(threading.Thread):
             # if mythtranscode failed outright, just report the error and escape the encoding loop
             if self.mythtranscodeProcessError:
                 self.reportSubprocessFailure( self.prefs['mythtranscodePath'], self.lastMythtranscodeStderr )
-                log.Msg(WARNING, "Thread %d: Thread failed, pass %d skipped" % (self.threadID, self.currentPass))
+                log(WARNING, "Thread %d: Thread failed, pass %d skipped" % (self.threadID, self.currentPass))
                 break
 
             self.stdoutSockMenc, stdoutChildSockMenc = socket.socketpair() 
@@ -1511,7 +1521,7 @@ class encoderThread(threading.Thread):
                         self.updateProcessRunningFlags()
                         
                         if not self.mythtranscodeRunning and not self.mencoderRunning:
-                            log.Msg(INFO, "Thread %d: All subprocess dead, terminating thread execution" % self.threadID)                            
+                            log(INFO, "Thread %d: All subprocess dead, terminating thread execution" % self.threadID)                            
                             stopRunning = True
                             break
 
@@ -1522,7 +1532,7 @@ class encoderThread(threading.Thread):
 
                             self.setRunningStatus( "Actively stopping subprocesses" )
                             
-                            log.Msg(INFO, "Thread %d: Aggressive mode running at second %d" % (self.threadID, sec))
+                            log(INFO, "Thread %d: Aggressive mode running at second %d" % (self.threadID, sec))
 
                             if sec > 7:
                                 usesig = signal.SIGKILL
@@ -1532,11 +1542,11 @@ class encoderThread(threading.Thread):
                                 usesigname = "SIGTERM"
 
                             if self.mythtranscodeRunning:
-                                log.Msg(INFO, "Thread %d: Aggressive mode: mencoder died but mythtranscode continues to run, sending %s to mythtranscode." % (self.threadID, usesigname))
+                                log(INFO, "Thread %d: Aggressive mode: mencoder died but mythtranscode continues to run, sending %s to mythtranscode." % (self.threadID, usesigname))
                                 os.kill(self.mythtranscodeProcess.pid, usesig)
 
                             if self.mencoderRunning:
-                                log.Msg(INFO, "Thread %d: Aggressive mode: mythtranscode died but mencoder continues to run, sending %s to mencoder." % (self.threadID, usesigname))
+                                log(INFO, "Thread %d: Aggressive mode: mythtranscode died but mencoder continues to run, sending %s to mencoder." % (self.threadID, usesigname))
                                 os.kill(self.mencoderProcess.pid, usesig)
 
 
@@ -1603,10 +1613,10 @@ class encoderThread(threading.Thread):
         self.failedMessage = "%s returned a failure code in pass %d\n\nDetails:\n%s" % (processName, self.currentPass, failureDetails)
         self.state = "failed"
 
-        log.Msg(WARNING, "Thread %d: Subprocess failure: %s" % (self.threadID, self.failedMessage))
+        log(WARNING, "Thread %d: Subprocess failure: %s" % (self.threadID, self.failedMessage))
 
     def clearPasslogDir(self, renewMode=True):
-        log.Msg(INFO, "Thread %d: Clearing passlog directory" % self.threadID)
+        log(INFO, "Thread %d: Clearing passlog directory" % self.threadID)
 
         # get directory for our fifos to live in
         self.passlogDir = '/tmp/mythrip-%d-passlog' % self.threadID
@@ -1617,7 +1627,7 @@ class encoderThread(threading.Thread):
             except Exception, e:
                 msg = "Could not remove stale passlog directory: %s" % e
                 
-                log.Msg(WARNING, "Thread ID %d: %s" % (self.threadID, msg))
+                log(WARNING, "Thread ID %d: %s" % (self.threadID, msg))
 
                 self.maintainState(setState="failed")
 
@@ -1626,14 +1636,14 @@ class encoderThread(threading.Thread):
                 os.mkdir(self.passlogDir)
             except Exception, e:
 
-                log.Msg(WARNING, "Failed creating passlog directory: %s" % e)
+                log(WARNING, "Failed creating passlog directory: %s" % e)
 
                 self.maintainState(setState="failed")
 
         
     def clearFifoDir(self, renewMode=True):
 
-        log.Msg(INFO, "Thread %d: Clearing FIFO directory" % self.threadID)
+        log(INFO, "Thread %d: Clearing FIFO directory" % self.threadID)
 
         # get directory for our fifos to live in
         self.mythtranscodeFifoDir = '/tmp/mythrip-%d-fifo' % self.threadID
@@ -1647,7 +1657,7 @@ class encoderThread(threading.Thread):
                 except Exception, e:
                     msg = "Could not remove stale fifo directory: %s" % e
 
-                    log.Msg(WARNING, "Thread ID %d: %s" % (self.threadID, msg))
+                    log(WARNING, "Thread ID %d: %s" % (self.threadID, msg))
 
                     self.maintainState(setState="failed")
 
@@ -1660,7 +1670,7 @@ class encoderThread(threading.Thread):
             try:
                 os.mkdir(self.mythtranscodeFifoDir)
             except Exception, e:
-                log.Msg(WARNING, "Failed creating fifo directories: %s" % e)
+                log(WARNING, "Failed creating fifo directories: %s" % e)
                 self.maintainState(setState="failed")
 
     def parseSubprocessOutput(self,mtGathering = False):
@@ -1838,7 +1848,7 @@ class encoderThread(threading.Thread):
         self.stdoutSockMT.settimeout(0.1)
         self.stderrSockMT.settimeout(0.1)
 
-        log.Msg(INFO, "Thread %d: Starting mythtranscode" % self.threadID)
+        log(INFO, "Thread %d: Starting mythtranscode" % self.threadID)
 
         self.mythtranscodeProcessError = False
         try:
@@ -1856,12 +1866,12 @@ class encoderThread(threading.Thread):
 
             # mythtranscode isnt even running.. just bail
             if self.mythtranscodeProcess.poll() != None:
-                log.Msg(WARNING, "Thread %d: mythtranscode quit running during FIFO directory scan" % self.threadID)
+                log(WARNING, "Thread %d: mythtranscode quit running during FIFO directory scan" % self.threadID)
                 break
 
             fifoPresent = self.isFifo( os.path.join(self.mythtranscodeFifoDir,'vidout') )
             if fifoPresent:
-                log.Msg(INFO, "Thread %d: FIFO directory has appeared, mythtranscode start-up successful" % self.threadID)
+                log(INFO, "Thread %d: FIFO directory has appeared, mythtranscode start-up successful" % self.threadID)
                 break
 
             time.sleep(1)
@@ -1900,7 +1910,7 @@ class encoderThread(threading.Thread):
         if os.path.isfile(retrFile):
             return self.makeOutputFilename( iteration=(iteration+1) )
         else:
-            log.Msg(INFO, "Thread %d: Output filename determined to be %s" % (self.threadID, retrFile))
+            log(INFO, "Thread %d: Output filename determined to be %s" % (self.threadID, retrFile))
             self.outputFile = retrFile
 
     # func called to update the encoder queue frame listctrl item
