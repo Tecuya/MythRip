@@ -7,6 +7,9 @@
 # standard python stuff
 import os, shutil, sys, threading, subprocess, socket, re, time, signal, stat, cPickle, base64, StringIO, traceback, logging
 
+# wxpython
+import wx
+
 # add to the sys.path if this prog is being run from a known path
 dir = os.path.split(__file__)[0]
 
@@ -37,10 +40,6 @@ PROGRAM_FLAGS = {
     'Watched': 0x0800,
     'Preserved': 0x1000
     }
-
-# wxpython
-import wx
-
 
 # begin wxGlade: extracode
 # end wxGlade
@@ -408,37 +407,11 @@ class mainFrame(wx.Frame):
             self.mainFrameListCtrl.DeleteItem( self.mainFrameListCtrl.FindItemData(0, i) )
 
         # reset the programList
-        self.programList = []
-
         self.programList = self.mythTV.getRecordings()
-    
-        ## # query recordings from the backend
-        ## rawRecordings = self.mythTV.backendCommand('QUERY_RECORDINGS Play').split(MythTV.BACKEND_SEP)            
-
-        ## if len(rawRecordings):
-        ##     # determine the record length and number of recordings present in the response
-        ##     numberRecordings = int(rawRecordings[0])        
-        ##     recordingLength = (len(rawRecordings) - 1) / numberRecordings
-
-        ##     # parse the output, stuff the results in to a list of Program objects
-
-        ##     for recording in range(numberRecordings):
                 
-        ##         idxStart = ( recording * recordingLength ) + 1    # plus one - offset for the beginning's "record count" record
-        ##         idxStop = ( recording + 1 ) * recordingLength     # stop at the next recording beginning
-
-        ##         recordingData = rawRecordings[idxStart:idxStop]
-
-        ##         log(DEBUG, "Recording data scrape: %s" % recordingData)
-                
-        ##         from IPython.Shell import IPShellEmbed; IPShellEmbed(banner='')()
-        ##         p = MythTV.Program( recordingData )
-        ##         self.programList.append( p )
-            
         # add recording count to the status bar
         self.mainFrameStatusbar.PushStatusText('Loaded %d recordings' % len(self.programList))
-        
-        
+                
         # push in the ListCtrl data
         for i in range(len(self.programList)):
             program = self.programList[i]
